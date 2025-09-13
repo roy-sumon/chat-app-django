@@ -76,9 +76,6 @@ The application comes with pre-created test users:
 
 - **Username:** `alice`, **Password:** `password123`
 - **Username:** `bob`, **Password:** `password123`
-- **Username:** `charlie`, **Password:** `password123`
-- **Username:** `diana`, **Password:** `password123`
-- **Admin:** `admin`, **Password:** `admin123`
 
 ## Usage
 
