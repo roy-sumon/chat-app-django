@@ -1,0 +1,193 @@
+{% extends 'base.html' %}
+
+{% block title %}Edit Profile{% endblock %}
+
+{% block content %}
+<div class="min-h-screen bg-gray-50 dark:bg-gray-900 py-8">
+    <div class="max-w-2xl mx-auto px-4">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white mb-6">Edit Profile</h1>
+            
+            <form method="post" enctype="multipart/form-data" class="space-y-6">
+                {% csrf_token %}
+                
+                <!-- Avatar Section -->
+                <div class="flex items-center space-x-6">
+                    <div class="relative">
+                        <img id="avatarPreview" 
+                             src="{{ profile.get_avatar_url }}" 
+                             alt="Current Avatar" 
+                             class="w-24 h-24 rounded-full object-cover border-4 border-gray-200 dark:border-gray-600">
+                        
+                        <div class="absolute bottom-0 right-0">
+                            <label for="avatarInput" class="bg-whatsapp-green hover:bg-whatsapp-teal text-white p-2 rounded-full cursor-pointer shadow-lg transition-colors">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path>
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                                </svg>
+                            </label>
+                            <input type="file" id="avatarInput" name="avatar" accept="image/*" class="hidden">
+                        </div>
+                    </div>
+                    
+                    <div class="flex-1">
+                        <h3 class="text-lg font-medium text-gray-900 dark:text-white">Profile Picture</h3>
+                        <p class="text-sm text-gray-500 dark:text-gray-400 mb-2">Click the camera icon to upload a new picture.</p>
+                        <p class="text-xs text-gray-400">Supported formats: JPEG, PNG, GIF. Max size: 5MB</p>
+                        
+                        {% if profile.avatar %}
+                        <button type="button" id="deleteAvatarBtn" class="mt-2 text-red-600 hover:text-red-700 text-sm">
+                            Delete current picture
+                        </button>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <!-- Personal Information -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label for="first_name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            First Name
+                        </label>
+                        <input type="text" id="first_name" name="first_name" 
+                               value="{{ user.first_name }}"
+                               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-whatsapp-green bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                    </div>
+                    
+                    <div>
+                        <label for="last_name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Last Name
+                        </label>
+                        <input type="text" id="last_name" name="last_name" 
+                               value="{{ user.last_name }}"
+                               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-whatsapp-green bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                    </div>
+                </div>
+                
+                <div>
+                    <label for="username" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Username
+                    </label>
+                    <input type="text" id="username" name="username" 
+                           value="{{ user.username }}" readonly
+                           class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-100 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed">
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Username cannot be changed</p>
+                </div>
+                
+                <!-- Bio -->
+                <div>
+                    <label for="bio" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Bio
+                    </label>
+                    <textarea id="bio" name="bio" rows="4" 
+                              placeholder="Tell us about yourself..."
+                              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-whatsapp-green bg-white dark:bg-gray-700 text-gray-900 dark:text-white resize-none">{{ profile.bio }}</textarea>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Maximum 500 characters</p>
+                </div>
+                
+                <!-- Action Buttons -->
+                <div class="flex justify-between pt-6">
+                    <a href="{% url 'profile_view' %}" 
+                       class="px-6 py-2 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 rounded-lg transition-colors">
+                        Cancel
+                    </a>
+                    
+                    <button type="submit" 
+                            class="px-6 py-2 bg-whatsapp-green hover:bg-whatsapp-teal text-white rounded-lg transition-colors">
+                        Save Changes
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const avatarInput = document.getElementById('avatarInput');
+    const avatarPreview = document.getElementById('avatarPreview');
+    const deleteAvatarBtn = document.getElementById('deleteAvatarBtn');
+    
+    // Preview uploaded image
+    avatarInput.addEventListener('change', function(e) {
+        if (e.target.files.length > 0) {
+            const file = e.target.files[0];
+            
+            // Validate file type
+            if (!file.type.startsWith('image/')) {
+                if (window.showToast) {
+                    window.showToast('Please select an image file.', 'error');
+                } else {
+                    alert('Please select an image file.');
+                }
+                e.target.value = '';
+                return;
+            }
+            
+            // Validate file size (5MB)
+            if (file.size > 5 * 1024 * 1024) {
+                if (window.showToast) {
+                    window.showToast('File too large. Please select an image smaller than 5MB.', 'error');
+                } else {
+                    alert('File too large. Please select an image smaller than 5MB.');
+                }
+                e.target.value = '';
+                return;
+            }
+            
+            // Show preview
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                avatarPreview.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+    });
+    
+    // Delete avatar functionality
+    if (deleteAvatarBtn) {
+        deleteAvatarBtn.addEventListener('click', async function() {
+            if (confirm('Are you sure you want to delete your profile picture?')) {
+                try {
+                    const response = await fetch('/profile/delete-avatar/', {
+                        method: 'POST',
+                        headers: {
+                            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                        }
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        avatarPreview.src = data.avatar_url + '?t=' + Date.now();
+                        deleteAvatarBtn.style.display = 'none';
+                        showMessage(data.message, 'success');
+                    } else {
+                        showMessage(data.error, 'error');
+                    }
+                } catch (error) {
+                    if (window.showToast) {
+                        window.showToast('Delete failed. Please try again.', 'error');
+                    } else {
+                        showMessage('Delete failed. Please try again.', 'error');
+                    }
+                }
+            }
+        });
+    }
+    
+    function showMessage(message, type) {
+        const div = document.createElement('div');
+        div.className = `fixed top-4 right-4 p-4 rounded-lg shadow-lg z-50 ${
+            type === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
+        }`;
+        div.textContent = message;
+        document.body.appendChild(div);
+        
+        setTimeout(() => {
+            div.remove();
+        }, 3000);
+    }
+});
+</script>
+{% endblock %}

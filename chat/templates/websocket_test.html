@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebSocket Connection Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .log { background: #f0f0f0; padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .error { background: #ffe6e6; border-left: 4px solid #ff0000; }
+        .success { background: #e6ffe6; border-left: 4px solid #00ff00; }
+        .info { background: #e6f3ff; border-left: 4px solid #0066cc; }
+        button { padding: 10px 20px; margin: 5px; background: #007cba; color: white; border: none; border-radius: 3px; cursor: pointer; }
+        button:hover { background: #005a87; }
+    </style>
+</head>
+<body>
+    <h1>🧪 WebSocket Connection Test</h1>
+    
+    <div class="info log">
+        <strong>Current User:</strong> {% if user.is_authenticated %}{{ user.username }} (Authenticated ✅){% else %}Anonymous (Not Logged In ❌){% endif %}
+    </div>
+    
+    <div class="info log">
+        <strong>Test URLs:</strong><br>
+        WebSocket: ws://localhost:8000/ws/chat/2/<br>
+        Chat Page: <a href="/?conversation=2">/?conversation=2</a>
+    </div>
+    
+    <button onclick="testWebSocket(2)">Test WebSocket Connection (Conv 2)</button>
+    <button onclick="testWebSocket(1)">Test WebSocket Connection (Conv 1)</button>
+    <button onclick="clearLog()">Clear Log</button>
+    
+    <div id="log"></div>
+    
+    <script>
+        let socket = null;
+        
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('log');
+            const entry = document.createElement('div');
+            entry.className = `log ${type}`;
+            entry.innerHTML = `<strong>${new Date().toLocaleTimeString()}:</strong> ${message}`;
+            logDiv.insertBefore(entry, logDiv.firstChild);
+        }
+        
+        function testWebSocket(conversationId) {
+            if (socket && socket.readyState === WebSocket.OPEN) {
+                socket.close();
+            }
+            
+            const wsUrl = `ws://localhost:8000/ws/chat/${conversationId}/`;
+            log(`Attempting to connect to: ${wsUrl}`, 'info');
+            
+            try {
+                socket = new WebSocket(wsUrl);
+                
+                socket.onopen = function(e) {
+                    log('✅ WebSocket connected successfully!', 'success');
+                    
+                    // Test sending a message
+                    const testMessage = {
+                        type: 'message',
+                        message: '🧪 Test message from WebSocket test page',
+                        temp_id: Date.now()
+                    };
+                    
+                    socket.send(JSON.stringify(testMessage));
+                    log(`📤 Sent test message: ${JSON.stringify(testMessage)}`, 'info');
+                };
+                
+                socket.onmessage = function(e) {
+                    const data = JSON.parse(e.data);
+                    log(`📥 Received message: ${JSON.stringify(data)}`, 'success');
+                };
+                
+                socket.onclose = function(e) {
+                    if (e.code === 4001) {
+                        log(`❌ WebSocket closed - Authentication failed (Code: ${e.code})`, 'error');
+                        log('🔐 Please login first, then try again', 'error');
+                    } else {
+                        log(`🔌 WebSocket closed (Code: ${e.code}, Reason: ${e.reason})`, 'info');
+                    }
+                };
+                
+                socket.onerror = function(e) {
+                    log('❌ WebSocket error occurred', 'error');
+                    console.error('WebSocket error:', e);
+                };
+                
+            } catch (error) {
+                log(`❌ Failed to create WebSocket: ${error.message}`, 'error');
+            }
+        }
+        
+        function clearLog() {
+            document.getElementById('log').innerHTML = '';
+        }
+        
+        // Auto-test if user is authenticated
+        {% if user.is_authenticated %}
+        log('🚀 User is authenticated, auto-testing WebSocket connection...', 'info');
+        setTimeout(() => testWebSocket(2), 1000);
+        {% else %}
+        log('⚠️ User not authenticated. Please <a href="/auth/login/">login</a> first.', 'error');
+        {% endif %}
+    </script>
+</body>
+</html>

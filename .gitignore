@@ -1,0 +1,52 @@
+# Django
+*.pyc
+__pycache__/
+db.sqlite3
+media/
+staticfiles/
+.env
+local_settings.py
+
+# Python
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+.venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Coverage reports
+htmlcov/
+.coverage
+.coverage.*
+
+# Migrations (uncomment if you want to exclude them)
+# */migrations/*
+# !*/migrations/__init__.py
+
+# Logs
+*.log
+
+# Cache
+.cache/
+
+# Node modules (if using any JS build tools)
+node_modules/
+
+# Temporary files
+*.tmp
+*.bak

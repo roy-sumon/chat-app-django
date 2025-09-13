@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Debug Chat Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .container { max-width: 800px; margin: 0 auto; }
+        .log { background: #f5f5f5; border: 1px solid #ddd; padding: 10px; height: 300px; overflow-y: auto; margin: 10px 0; }
+        .controls { margin: 10px 0; }
+        .controls input, .controls button { margin: 5px; padding: 8px; }
+        .error { color: red; }
+        .success { color: green; }
+        .info { color: blue; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🐛 Chat Debug Tool</h1>
+        
+        <div class="info">
+            <p><strong>Current User:</strong> {{ user.username }}</p>
+            <p><strong>User ID:</strong> {{ user.id }}</p>
+            <p><strong>Is Authenticated:</strong> {{ user.is_authenticated }}</p>
+        </div>
+        
+        <h3>WebSocket Test</h3>
+        <div class="controls">
+            <input type="number" id="conversationId" placeholder="Conversation ID" value="1">
+            <button onclick="connectWebSocket()">Connect WebSocket</button>
+            <button onclick="disconnectWebSocket()">Disconnect</button>
+            <span id="connectionStatus">Not connected</span>
+        </div>
+        
+        <div class="controls">
+            <input type="text" id="testMessage" placeholder="Type test message" style="width: 300px;">
+            <button onclick="sendTestMessage()">Send Message</button>
+        </div>
+        
+        <h3>Debug Log</h3>
+        <div id="debugLog" class="log"></div>
+        
+        <h3>Database Check</h3>
+        <button onclick="checkDatabase()">Check Messages in DB</button>
+        <div id="dbResults" class="log"></div>
+    </div>
+
+    <script>
+        let socket = null;
+        const currentUserId = {{ user.id }};
+        const currentUsername = '{{ user.username }}';
+        
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('debugLog');
+            const timestamp = new Date().toLocaleTimeString();
+            const className = type === 'error' ? 'error' : type === 'success' ? 'success' : 'info';
+            logDiv.innerHTML += `<div class="${className}">[${timestamp}] ${message}</div>`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+        
+        function connectWebSocket() {
+            const conversationId = document.getElementById('conversationId').value;
+            if (!conversationId) {
+                log('Please enter a conversation ID', 'error');
+                return;
+            }
+            
+            if (socket) {
+                socket.close();
+            }
+            
+            const wsScheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
+            const wsUrl = `${wsScheme}://${window.location.host}/ws/chat/${conversationId}/`;
+            
+            log(`Attempting to connect to: ${wsUrl}`);
+            document.getElementById('connectionStatus').textContent = 'Connecting...';
+            
+            try {
+                socket = new WebSocket(wsUrl);
+                
+                socket.onopen = function(e) {
+                    log('✅ WebSocket connected successfully!', 'success');
+                    document.getElementById('connectionStatus').textContent = 'Connected';
+                    document.getElementById('connectionStatus').style.color = 'green';
+                };
+                
+                socket.onmessage = function(e) {
+                    log(`📨 Received: ${e.data}`, 'success');
+                    try {
+                        const data = JSON.parse(e.data);
+                        log(`📋 Parsed data: ${JSON.stringify(data, null, 2)}`, 'info');
+                    } catch (err) {
+                        log(`❌ Failed to parse message: ${err}`, 'error');
+                    }
+                };
+                
+                socket.onclose = function(e) {
+                    log(`❌ WebSocket closed. Code: ${e.code}, Reason: ${e.reason}`, 'error');
+                    document.getElementById('connectionStatus').textContent = 'Disconnected';
+                    document.getElementById('connectionStatus').style.color = 'red';
+                    
+                    if (e.code === 4001) {
+                        log('🚫 Authentication failed - User not logged in!', 'error');
+                    }
+                };
+                
+                socket.onerror = function(e) {
+                    log(`❌ WebSocket error: ${e}`, 'error');
+                };
+                
+            } catch (err) {
+                log(`❌ Failed to create WebSocket: ${err}`, 'error');
+            }
+        }
+        
+        function disconnectWebSocket() {
+            if (socket) {
+                socket.close();
+                socket = null;
+                log('🔌 WebSocket disconnected manually');
+            }
+        }
+        
+        function sendTestMessage() {
+            const message = document.getElementById('testMessage').value.trim();
+            if (!message) {
+                log('Please enter a message', 'error');
+                return;
+            }
+            
+            if (!socket || socket.readyState !== WebSocket.OPEN) {
+                log('❌ WebSocket not connected! Connect first.', 'error');
+                return;
+            }
+            
+            const messageData = {
+                'type': 'message',
+                'message': message,
+                'temp_id': Date.now()
+            };
+            
+            log(`📤 Sending: ${JSON.stringify(messageData)}`, 'info');
+            
+            try {
+                socket.send(JSON.stringify(messageData));
+                document.getElementById('testMessage').value = '';
+                log('✅ Message sent successfully!', 'success');
+            } catch (err) {
+                log(`❌ Failed to send message: ${err}`, 'error');
+            }
+        }
+        
+        function checkDatabase() {
+            fetch('/debug-db-check/')
+                .then(response => response.json())
+                .then(data => {
+                    const dbDiv = document.getElementById('dbResults');
+                    dbDiv.innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+                })
+                .catch(err => {
+                    document.getElementById('dbResults').innerHTML = `<div class="error">Error: ${err}</div>`;
+                });
+        }
+        
+        // Enter key sends message
+        document.getElementById('testMessage').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                sendTestMessage();
+            }
+        });
+        
+        log('🚀 Debug tool loaded. Current user: ' + currentUsername + ' (ID: ' + currentUserId + ')');
+    </script>
+</body>
+</html>
