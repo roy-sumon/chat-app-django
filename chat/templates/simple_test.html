@@ -20,22 +20,22 @@
 </head>
 <body>
     <div class="container">
-        <h1>🧪 Simple WebSocket Message Test</h1>
+        <h1>Simple WebSocket Message Test</h1>
         
         <div class="status info">
-            <strong>User:</strong> {% if user.is_authenticated %}{{ user.username }} ✅{% else %}Not logged in ❌{% endif %}<br>
+            <strong>User:</strong> {% if user.is_authenticated %}{{ user.username }}{% else %}Not logged in{% endif %}<br>
             <strong>Test Conversation:</strong> ID #2 (Alice & Bob)
         </div>
         
         <div>
-            <button class="primary" onclick="connectWebSocket()">🔌 Connect WebSocket</button>
-            <button class="danger" onclick="disconnectWebSocket()">🔌 Disconnect</button>
-            <button class="success-btn" onclick="clearLog()">🧹 Clear Log</button>
+            <button class="primary" onclick="connectWebSocket()">Connect WebSocket</button>
+            <button class="danger" onclick="disconnectWebSocket()">Disconnect</button>
+            <button class="success-btn" onclick="clearLog()">Clear Log</button>
         </div>
         
         <div>
             <input type="text" id="messageText" placeholder="Type your message here..." onkeypress="if(event.key==='Enter') sendMessage()">
-            <button class="success-btn" onclick="sendMessage()">📤 Send Message</button>
+            <button class="success-btn" onclick="sendMessage()">Send Message</button>
         </div>
         
         <div id="log"></div>
@@ -59,48 +59,48 @@
         
         function connectWebSocket() {
             if (ws && ws.readyState === WebSocket.OPEN) {
-                log('❌ WebSocket already connected!', 'error');
+                log('WebSocket already connected!', 'error');
                 return;
             }
             
             const wsUrl = 'ws://localhost:8000/ws/chat/2/';
-            log(`🔌 Connecting to: ${wsUrl}`, 'info');
+            log(`Connecting to: ${wsUrl}`, 'info');
             
             try {
                 ws = new WebSocket(wsUrl);
                 
                 ws.onopen = function(event) {
-                    log('✅ <strong>WebSocket Connected Successfully!</strong>', 'success');
-                    log('🎉 You can now send messages!', 'success');
+                    log('<strong>WebSocket Connected Successfully!</strong>', 'success');
+                    log('You can now send messages!', 'success');
                 };
                 
                 ws.onmessage = function(event) {
-                    log(`📥 <strong>Message Received:</strong> ${event.data}`, 'success');
+                    log(`<strong>Message Received:</strong> ${event.data}`, 'success');
                     
                     try {
                         const data = JSON.parse(event.data);
                         if (data.type === 'message') {
-                            log(`💬 <strong>${data.username}:</strong> ${data.message}`, 'success');
+                            log(`<strong>${data.username}:</strong> ${data.message}`, 'success');
                         }
                     } catch (e) {
-                        log(`📥 Raw data: ${event.data}`, 'info');
+                        log(`Raw data: ${event.data}`, 'info');
                     }
                 };
                 
                 ws.onclose = function(event) {
                     if (event.code === 4001) {
-                        log(`❌ <strong>Authentication Failed!</strong> Please <a href="/auth/login/">login first</a>`, 'error');
+                        log(`<strong>Authentication Failed!</strong> Please <a href="/auth/login/">login first</a>`, 'error');
                     } else {
-                        log(`🔌 WebSocket closed (Code: ${event.code})`, 'info');
+                        log(`WebSocket closed (Code: ${event.code})`, 'info');
                     }
                 };
                 
                 ws.onerror = function(event) {
-                    log('❌ <strong>WebSocket Error!</strong> Check server logs', 'error');
+                    log('<strong>WebSocket Error!</strong> Check server logs', 'error');
                 };
                 
             } catch (error) {
-                log(`❌ Failed to create WebSocket: ${error}`, 'error');
+                log(`Failed to create WebSocket: ${error}`, 'error');
             }
         }
         
@@ -108,9 +108,9 @@
             if (ws) {
                 ws.close();
                 ws = null;
-                log('🔌 WebSocket disconnected', 'info');
+                log('WebSocket disconnected', 'info');
             } else {
-                log('❌ No active WebSocket connection', 'error');
+                log('No active WebSocket connection', 'error');
             }
         }
         
@@ -119,12 +119,12 @@
             const message = messageText.value.trim();
             
             if (!message) {
-                log('❌ Please enter a message first!', 'error');
+                log('Please enter a message first!', 'error');
                 return;
             }
             
             if (!ws || ws.readyState !== WebSocket.OPEN) {
-                log('❌ WebSocket not connected! Click "Connect WebSocket" first.', 'error');
+                log('WebSocket not connected! Click "Connect WebSocket" first.', 'error');
                 return;
             }
             
@@ -134,24 +134,24 @@
                 temp_id: Date.now()
             };
             
-            log(`📤 <strong>Sending:</strong> ${message}`, 'info');
-            log(`📤 <strong>Data:</strong> ${JSON.stringify(messageData)}`, 'info');
+            log(`<strong>Sending:</strong> ${message}`, 'info');
+            log(`<strong>Data:</strong> ${JSON.stringify(messageData)}`, 'info');
             
             try {
                 ws.send(JSON.stringify(messageData));
                 messageText.value = '';
-                log('✅ Message sent successfully!', 'success');
+                log('Message sent successfully!', 'success');
             } catch (error) {
-                log(`❌ Failed to send message: ${error}`, 'error');
+                log(`Failed to send message: ${error}`, 'error');
             }
         }
         
         // Auto-connect if user is authenticated
         {% if user.is_authenticated %}
-        log('🚀 User authenticated, auto-connecting...', 'info');
+        log('User authenticated, auto-connecting...', 'info');
         setTimeout(connectWebSocket, 500);
         {% else %}
-        log('⚠️ Please <a href="/auth/login/">login</a> first to test messaging', 'error');
+        log('Please <a href="/auth/login/">login</a> first to test messaging', 'error');
         {% endif %}
         
         // Focus message input

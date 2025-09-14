@@ -15,7 +15,7 @@
 </head>
 <body>
     <div class="container">
-        <h1>🐛 Chat Debug Tool</h1>
+        <h1>Chat Debug Tool</h1>
         
         <div class="info">
             <p><strong>Current User:</strong> {{ user.username }}</p>
@@ -78,37 +78,37 @@
                 socket = new WebSocket(wsUrl);
                 
                 socket.onopen = function(e) {
-                    log('✅ WebSocket connected successfully!', 'success');
+                log('WebSocket connected successfully!', 'success');
                     document.getElementById('connectionStatus').textContent = 'Connected';
                     document.getElementById('connectionStatus').style.color = 'green';
                 };
                 
                 socket.onmessage = function(e) {
-                    log(`📨 Received: ${e.data}`, 'success');
+                log(`Received: ${e.data}`, 'success');
                     try {
                         const data = JSON.parse(e.data);
-                        log(`📋 Parsed data: ${JSON.stringify(data, null, 2)}`, 'info');
+                        log(`Parsed data: ${JSON.stringify(data, null, 2)}`, 'info');
                     } catch (err) {
-                        log(`❌ Failed to parse message: ${err}`, 'error');
+                        log(`Failed to parse message: ${err}`, 'error');
                     }
                 };
                 
                 socket.onclose = function(e) {
-                    log(`❌ WebSocket closed. Code: ${e.code}, Reason: ${e.reason}`, 'error');
+                    log(`WebSocket closed. Code: ${e.code}, Reason: ${e.reason}`, 'error');
                     document.getElementById('connectionStatus').textContent = 'Disconnected';
                     document.getElementById('connectionStatus').style.color = 'red';
                     
                     if (e.code === 4001) {
-                        log('🚫 Authentication failed - User not logged in!', 'error');
+                        log('Authentication failed - User not logged in!', 'error');
                     }
                 };
                 
                 socket.onerror = function(e) {
-                    log(`❌ WebSocket error: ${e}`, 'error');
+                    log(`WebSocket error: ${e}`, 'error');
                 };
                 
             } catch (err) {
-                log(`❌ Failed to create WebSocket: ${err}`, 'error');
+                log(`Failed to create WebSocket: ${err}`, 'error');
             }
         }
         
@@ -116,7 +116,7 @@
             if (socket) {
                 socket.close();
                 socket = null;
-                log('🔌 WebSocket disconnected manually');
+                log('WebSocket disconnected manually');
             }
         }
         
@@ -128,7 +128,7 @@
             }
             
             if (!socket || socket.readyState !== WebSocket.OPEN) {
-                log('❌ WebSocket not connected! Connect first.', 'error');
+                log('WebSocket not connected! Connect first.', 'error');
                 return;
             }
             
@@ -138,14 +138,14 @@
                 'temp_id': Date.now()
             };
             
-            log(`📤 Sending: ${JSON.stringify(messageData)}`, 'info');
+            log(`Sending: ${JSON.stringify(messageData)}`, 'info');
             
             try {
                 socket.send(JSON.stringify(messageData));
                 document.getElementById('testMessage').value = '';
-                log('✅ Message sent successfully!', 'success');
+                log('Message sent successfully!', 'success');
             } catch (err) {
-                log(`❌ Failed to send message: ${err}`, 'error');
+                log(`Failed to send message: ${err}`, 'error');
             }
         }
         
@@ -168,7 +168,7 @@
             }
         });
         
-        log('🚀 Debug tool loaded. Current user: ' + currentUsername + ' (ID: ' + currentUserId + ')');
+        log('Debug tool loaded. Current user: ' + currentUsername + ' (ID: ' + currentUserId + ')');
     </script>
 </body>
 </html>

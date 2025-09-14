@@ -13,10 +13,10 @@
     </style>
 </head>
 <body>
-    <h1>🧪 WebSocket Connection Test</h1>
+    <h1>WebSocket Connection Test</h1>
     
     <div class="info log">
-        <strong>Current User:</strong> {% if user.is_authenticated %}{{ user.username }} (Authenticated ✅){% else %}Anonymous (Not Logged In ❌){% endif %}
+        <strong>Current User:</strong> {% if user.is_authenticated %}{{ user.username }} (Authenticated){% else %}Anonymous (Not Logged In){% endif %}
     </div>
     
     <div class="info log">
@@ -54,40 +54,40 @@
                 socket = new WebSocket(wsUrl);
                 
                 socket.onopen = function(e) {
-                    log('✅ WebSocket connected successfully!', 'success');
+                    log('WebSocket connected successfully!', 'success');
                     
                     // Test sending a message
                     const testMessage = {
                         type: 'message',
-                        message: '🧪 Test message from WebSocket test page',
+                        message: 'Test message from WebSocket test page',
                         temp_id: Date.now()
                     };
                     
                     socket.send(JSON.stringify(testMessage));
-                    log(`📤 Sent test message: ${JSON.stringify(testMessage)}`, 'info');
+                    log(`Sent test message: ${JSON.stringify(testMessage)}`, 'info');
                 };
                 
                 socket.onmessage = function(e) {
                     const data = JSON.parse(e.data);
-                    log(`📥 Received message: ${JSON.stringify(data)}`, 'success');
+                    log(`Received message: ${JSON.stringify(data)}`, 'success');
                 };
                 
                 socket.onclose = function(e) {
                     if (e.code === 4001) {
-                        log(`❌ WebSocket closed - Authentication failed (Code: ${e.code})`, 'error');
-                        log('🔐 Please login first, then try again', 'error');
+                        log(`WebSocket closed - Authentication failed (Code: ${e.code})`, 'error');
+                        log('Please login first, then try again', 'error');
                     } else {
-                        log(`🔌 WebSocket closed (Code: ${e.code}, Reason: ${e.reason})`, 'info');
+                        log(`WebSocket closed (Code: ${e.code}, Reason: ${e.reason})`, 'info');
                     }
                 };
                 
                 socket.onerror = function(e) {
-                    log('❌ WebSocket error occurred', 'error');
+                    log('WebSocket error occurred', 'error');
                     console.error('WebSocket error:', e);
                 };
                 
             } catch (error) {
-                log(`❌ Failed to create WebSocket: ${error.message}`, 'error');
+                log(`Failed to create WebSocket: ${error.message}`, 'error');
             }
         }
         
@@ -97,10 +97,10 @@
         
         // Auto-test if user is authenticated
         {% if user.is_authenticated %}
-        log('🚀 User is authenticated, auto-testing WebSocket connection...', 'info');
+        log('User is authenticated, auto-testing WebSocket connection...', 'info');
         setTimeout(() => testWebSocket(2), 1000);
         {% else %}
-        log('⚠️ User not authenticated. Please <a href="/auth/login/">login</a> first.', 'error');
+        log('User not authenticated. Please <a href="/auth/login/">login</a> first.', 'error');
         {% endif %}
     </script>
 </body>

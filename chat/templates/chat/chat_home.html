@@ -668,19 +668,19 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 <script>
     // Simple test to verify JavaScript execution
-    console.log('🔧 JavaScript execution test - Template loaded successfully');
-    console.log('🔍 Current URL:', window.location.href);
+    console.log('JavaScript execution test - Template loaded successfully');
+    console.log('Current URL:', window.location.href);
     
     // Test if basic DOM manipulation works
     document.addEventListener('DOMContentLoaded', function() {
-        console.log('🚀 DOM ready - Template JavaScript executing');
+        console.log('DOM ready - Template JavaScript executing');
         
         // Check if attach button exists immediately
         const attachBtn = document.getElementById('attachBtn');
-        console.log('📎 Attach button found in template script:', !!attachBtn);
+        console.log('Attach button found in template script:', !!attachBtn);
         
         if (attachBtn) {
-            console.log('📎 Attach button details:', {
+            console.log('Attach button details:', {
                 id: attachBtn.id,
                 className: attachBtn.className,
                 tagName: attachBtn.tagName
@@ -688,17 +688,17 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // Add a direct click listener for testing
             attachBtn.addEventListener('click', function(e) {
-                console.log('📎 DIRECT CLICK TEST - Attach button was clicked!');
+                console.log('DIRECT CLICK TEST - Attach button was clicked!');
                 
                 // Try to trigger file input
                 const fileInput = document.getElementById('fileInput');
                 if (fileInput) {
-                    console.log('📁 Triggering file input directly...');
+                    console.log('Triggering file input directly...');
                     e.preventDefault();
                     e.stopPropagation();
                     fileInput.click();
                 } else {
-                    console.error('❌ File input not found!');
+                    console.error('File input not found!');
                 }
             });
             

@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>File Upload Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .test-section { margin: 20px 0; padding: 20px; border: 1px solid #ccc; }
+        #output { background: #f0f0f0; padding: 10px; margin-top: 10px; }
+        .file-preview { margin: 10px 0; padding: 10px; border: 1px solid #ddd; }
+    </style>
+</head>
+<body>
+    <h1>File Upload Test Page</h1>
+    <p>This is a simplified test to check file upload functionality.</p>
+
+    <div class="test-section">
+        <h2>Test 1: Direct File Input</h2>
+        <input type="file" id="testFileInput" accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.txt">
+        <button onclick="testDirectUpload()">Test Direct Upload</button>
+        <div id="directOutput" class="output"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Test 2: Button + Hidden Input (Chat Style)</h2>
+        <button id="chatStyleBtn" onclick="document.getElementById('hiddenInput').click()">📎 Attach File</button>
+        <input type="file" id="hiddenInput" style="display: none;" accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.txt">
+        <div id="chatOutput" class="output"></div>
+    </div>
+
+    <div id="filePreview"></div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Test page loaded');
+
+            // Test 1: Direct file input
+            document.getElementById('testFileInput').addEventListener('change', function(e) {
+                const file = e.target.files[0];
+                if (file) {
+                    document.getElementById('directOutput').innerHTML = 
+                        `<strong>File selected:</strong> ${file.name}<br>
+                         <strong>Size:</strong> ${file.size} bytes<br>
+                         <strong>Type:</strong> ${file.type}`;
+                    renderFilePreview(file);
+                }
+            });
+
+            // Test 2: Chat style
+            document.getElementById('hiddenInput').addEventListener('change', function(e) {
+                const file = e.target.files[0];
+                if (file) {
+                    document.getElementById('chatOutput').innerHTML = 
+                        `<strong>Chat-style file selected:</strong> ${file.name}<br>
+                         <strong>Size:</strong> ${file.size} bytes<br>
+                         <strong>Type:</strong> ${file.type}`;
+                    renderFilePreview(file);
+                }
+            });
+        });
+
+        function testDirectUpload() {
+            const fileInput = document.getElementById('testFileInput');
+            const file = fileInput.files[0];
+            if (!file) {
+                alert('Please select a file first');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('conversation_id', '1'); // Test conversation ID
+
+            fetch('/upload-file/', {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-CSRFToken': getCSRFToken()
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log('Upload response:', data);
+                document.getElementById('directOutput').innerHTML += 
+                    `<br><br><strong>Upload Result:</strong><br><pre>${JSON.stringify(data, null, 2)}</pre>`;
+            })
+            .catch(error => {
+                console.error('Upload error:', error);
+                document.getElementById('directOutput').innerHTML += 
+                    `<br><br><strong>Upload Error:</strong> ${error.message}`;
+            });
+        }
+
+        function renderFilePreview(file) {
+            const previewDiv = document.getElementById('filePreview');
+            previewDiv.innerHTML = '';
+
+            const fileDiv = document.createElement('div');
+            fileDiv.className = 'file-preview';
+
+            if (file.type.startsWith('image/')) {
+                const img = document.createElement('img');
+                img.src = URL.createObjectURL(file);
+                img.style.maxWidth = '200px';
+                img.style.maxHeight = '200px';
+                fileDiv.appendChild(img);
+            } else {
+                const icon = document.createElement('div');
+                icon.innerHTML = '📄';
+                icon.style.fontSize = '48px';
+                fileDiv.appendChild(icon);
+            }
+
+            const info = document.createElement('div');
+            info.innerHTML = `<strong>${file.name}</strong><br>${(file.size / 1024).toFixed(2)} KB`;
+            fileDiv.appendChild(info);
+
+            previewDiv.appendChild(fileDiv);
+        }
+
+        function getCSRFToken() {
+            // Try to get CSRF token from cookie or meta tag
+            const name = 'csrftoken';
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+    </script>
+</body>
+</html>

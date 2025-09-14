@@ -90,7 +90,7 @@ class ChatApp {
         });
         
         // File upload functionality
-        console.log('📁 Initializing file upload functionality...');
+        console.log('Initializing file upload functionality...');
         this.setupFileUpload();
     }
     

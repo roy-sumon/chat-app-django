@@ -4,7 +4,7 @@ A real-time chat application built with Django, Django Channels, and Tailwind CS
 
 ## Features
 
-🚀 **Core Features:**
+**Core Features:**
 - Real-time messaging using WebSockets
 - WhatsApp-like UI design with Tailwind CSS
 - User authentication (login/logout/signup)
@@ -14,7 +14,7 @@ A real-time chat application built with Django, Django Channels, and Tailwind CS
 - Typing indicators
 - Responsive design for mobile and desktop
 
-✨ **Advanced Features:**
+**Advanced Features:**
 - Dark mode toggle
 - Modern toast notification system (replaces traditional alerts)
 - User profiles with avatar upload and management

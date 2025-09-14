@@ -1,0 +1,251 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}File Upload Test{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <h1 class="text-3xl font-bold text-gray-900 dark:text-white mb-8">🔧 File Upload Diagnostic Test</h1>
+    
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <!-- Test 1: Basic Form Upload -->
+        <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg">
+            <h2 class="text-xl font-semibold text-gray-900 dark:text-white mb-4">1. Basic Form Upload Test</h2>
+            <form id="basicUploadForm" enctype="multipart/form-data" class="space-y-4">
+                {% csrf_token %}
+                <div>
+                    <label for="basicFileInput" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Select File:
+                    </label>
+                    <input type="file" id="basicFileInput" name="file" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <button type="submit" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-4 rounded-md transition-colors">
+                    Test Upload
+                </button>
+            </form>
+            <div id="basicResult" class="mt-4 p-3 rounded-md hidden"></div>
+        </div>
+        
+        <!-- Test 2: Chat App Style Upload -->
+        <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg">
+            <h2 class="text-xl font-semibold text-gray-900 dark:text-white mb-4">2. Chat App Style Upload</h2>
+            <div class="space-y-4">
+                <div class="flex items-center space-x-4">
+                    <button id="attachBtn" class="bg-green-500 hover:bg-green-600 text-white font-medium py-2 px-4 rounded-md transition-colors flex items-center space-x-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"></path>
+                        </svg>
+                        <span>📎 Attach File</span>
+                    </button>
+                    <input type="file" id="fileInput" class="hidden">
+                </div>
+                
+                <!-- File Preview -->
+                <div id="filePreview" class="hidden border border-gray-200 dark:border-gray-600 rounded-md p-4">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center space-x-3">
+                            <div id="fileIcon" class="text-2xl"></div>
+                            <div>
+                                <p id="fileName" class="font-medium text-gray-900 dark:text-white">No file selected</p>
+                                <p id="fileSize" class="text-sm text-gray-500 dark:text-gray-400">0 bytes</p>
+                            </div>
+                        </div>
+                        <button id="removeFile" class="text-red-500 hover:text-red-700 transition-colors">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                            </svg>
+                        </button>
+                    </div>
+                    <div id="imagePreview" class="mt-3 hidden">
+                        <img class="max-w-full h-32 object-cover rounded-md" alt="Preview">
+                    </div>
+                </div>
+            </div>
+            <div id="chatResult" class="mt-4 p-3 rounded-md hidden"></div>
+        </div>
+    </div>
+    
+    <!-- Console Output -->
+    <div class="mt-8 bg-gray-900 text-green-400 p-6 rounded-lg">
+        <h2 class="text-xl font-semibold text-white mb-4">📊 Console Output</h2>
+        <div id="console" class="h-64 overflow-y-auto font-mono text-sm"></div>
+    </div>
+</div>
+
+<script>
+    // Console logging to page
+    const consoleDiv = document.getElementById('console');
+    const originalLog = console.log;
+    const originalError = console.error;
+    
+    function addToConsole(message, type = 'log') {
+        const timestamp = new Date().toLocaleTimeString();
+        const color = type === 'error' ? 'text-red-400' : type === 'warn' ? 'text-yellow-400' : 'text-green-400';
+        consoleDiv.innerHTML += `<div class="${color}">[${timestamp}] ${message}</div>`;
+        consoleDiv.scrollTop = consoleDiv.scrollHeight;
+    }
+    
+    console.log = function(...args) {
+        originalLog.apply(console, args);
+        addToConsole(args.join(' '), 'log');
+    };
+    
+    console.error = function(...args) {
+        originalError.apply(console, args);
+        addToConsole(args.join(' '), 'error');
+    };
+    
+    console.warn = function(...args) {
+        console.warn.apply(console, args);
+        addToConsole(args.join(' '), 'warn');
+    };
+    
+    // Test 1: Basic Form Upload
+    document.getElementById('basicUploadForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        console.log('🧪 Basic form upload test started');
+        
+        const formData = new FormData(this);
+        const resultDiv = document.getElementById('basicResult');
+        
+        try {
+            const response = await fetch('/test-file-upload/', {
+                method: 'POST',
+                body: formData
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                resultDiv.className = 'mt-4 p-3 rounded-md bg-green-100 text-green-800';
+                resultDiv.innerHTML = `✅ Success: ${data.message}<br>File: ${data.file_name} (${data.file_size} bytes)`;
+                console.log('✅ Basic upload successful:', data);
+            } else {
+                throw new Error(data.error);
+            }
+            
+        } catch (error) {
+            resultDiv.className = 'mt-4 p-3 rounded-md bg-red-100 text-red-800';
+            resultDiv.innerHTML = `❌ Error: ${error.message}`;
+            console.error('❌ Basic upload failed:', error);
+        }
+        
+        resultDiv.classList.remove('hidden');
+    });
+    
+    // Test 2: Chat App Style Upload
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('🚀 DOM loaded - Initializing chat app style test');
+        
+        const attachBtn = document.getElementById('attachBtn');
+        const fileInput = document.getElementById('fileInput');
+        const removeFile = document.getElementById('removeFile');
+        const filePreview = document.getElementById('filePreview');
+        const fileName = document.getElementById('fileName');
+        const fileSize = document.getElementById('fileSize');
+        const fileIcon = document.getElementById('fileIcon');
+        const imagePreview = document.getElementById('imagePreview');
+        
+        console.log('📎 Elements check:', {
+            attachBtn: !!attachBtn,
+            fileInput: !!fileInput,
+            removeFile: !!removeFile,
+            filePreview: !!filePreview,
+            fileName: !!fileName,
+            fileSize: !!fileSize,
+            fileIcon: !!fileIcon,
+            imagePreview: !!imagePreview
+        });
+        
+        if (attachBtn && fileInput) {
+            console.log('✅ Chat app elements found, setting up handlers');
+            
+            attachBtn.addEventListener('click', function(e) {
+                console.log('📎 Attach button clicked');
+                e.preventDefault();
+                fileInput.click();
+            });
+            
+            fileInput.addEventListener('change', function(e) {
+                const file = e.target.files[0];
+                console.log('📁 File input changed:', e.target.files);
+                
+                if (file) {
+                    console.log('📄 File selected:', {
+                        name: file.name,
+                        size: file.size,
+                        type: file.type
+                    });
+                    
+                    // Show file preview
+                    fileName.textContent = file.name;
+                    fileSize.textContent = formatFileSize(file.size);
+                    fileIcon.textContent = getFileIcon(file);
+                    
+                    // Show image preview if it's an image
+                    if (file.type.startsWith('image/')) {
+                        const reader = new FileReader();
+                        reader.onload = function(e) {
+                            const img = imagePreview.querySelector('img');
+                            img.src = e.target.result;
+                            imagePreview.classList.remove('hidden');
+                        };
+                        reader.readAsDataURL(file);
+                    } else {
+                        imagePreview.classList.add('hidden');
+                    }
+                    
+                    filePreview.classList.remove('hidden');
+                    console.log('✅ File preview displayed');
+                }
+            });
+            
+            if (removeFile) {
+                removeFile.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    console.log('🗑️ Remove file clicked');
+                    
+                    fileInput.value = '';
+                    filePreview.classList.add('hidden');
+                    imagePreview.classList.add('hidden');
+                    
+                    console.log('✅ File preview cleared');
+                });
+            }
+        } else {
+            console.error('❌ Chat app elements missing');
+        }
+    });
+    
+    function formatFileSize(bytes) {
+        if (bytes === 0) return '0 Bytes';
+        
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+    
+    function getFileIcon(file) {
+        const extension = file.name.split('.').pop().toLowerCase();
+        const type = file.type.toLowerCase();
+        
+        if (type.startsWith('image/')) {
+            return '🖼️';
+        } else if (extension === 'pdf') {
+            return '📄';
+        } else if (type.startsWith('audio/')) {
+            return '🎵';
+        } else if (type.startsWith('video/')) {
+            return '🎥';
+        } else if (['zip', 'rar', '7z'].includes(extension)) {
+            return '📦';
+        } else {
+            return '📄';
+        }
+    }
+    
+    console.log('🚀 Test page initialized successfully');
+</script>
+{% endblock %}

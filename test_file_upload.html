@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>File Upload Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; }
+        .btn { padding: 10px 20px; margin: 10px; border: none; border-radius: 5px; cursor: pointer; }
+        .btn-primary { background-color: #007bff; color: white; }
+        .hidden { display: none; }
+        .file-preview { border: 1px solid #ddd; padding: 15px; margin: 10px 0; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>File Upload Test Page</h1>
+        
+        <h2>1. Basic File Input Test</h2>
+        <input type="file" id="basicFileInput" />
+        <div id="basicResult"></div>
+        
+        <h2>2. Hidden File Input + Button Test</h2>
+        <button id="attachBtn" class="btn btn-primary">📎 Attach File</button>
+        <input type="file" id="fileInput" class="hidden" />
+        <div id="filePreview" class="file-preview hidden">
+            <div>
+                <div id="fileIcon"></div>
+                <p id="fileName">No file selected</p>
+                <p id="fileSize">0 bytes</p>
+            </div>
+            <button id="removeFile" class="btn">Remove</button>
+            <div id="imagePreview" class="hidden">
+                <img style="max-width: 200px; max-height: 200px;" alt="Preview">
+            </div>
+        </div>
+        
+        <h2>Console Output</h2>
+        <div id="console" style="background: #f5f5f5; padding: 10px; height: 300px; overflow-y: scroll; font-family: monospace; font-size: 12px;"></div>
+    </div>
+
+    <script>
+        // Console logging to page
+        const consoleDiv = document.getElementById('console');
+        const originalLog = console.log;
+        const originalError = console.error;
+        
+        console.log = function(...args) {
+            originalLog.apply(console, args);
+            consoleDiv.innerHTML += `<div style="color: blue;">[LOG] ${args.join(' ')}</div>`;
+            consoleDiv.scrollTop = consoleDiv.scrollHeight;
+        };
+        
+        console.error = function(...args) {
+            originalError.apply(console, args);
+            consoleDiv.innerHTML += `<div style="color: red;">[ERROR] ${args.join(' ')}</div>`;
+            consoleDiv.scrollTop = consoleDiv.scrollHeight;
+        };
+        
+        // Test 1: Basic file input
+        document.getElementById('basicFileInput').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                document.getElementById('basicResult').innerHTML = `Selected: ${file.name} (${file.size} bytes)`;
+                console.log('Basic file input works:', file.name);
+            }
+        });
+        
+        // Test 2: Simulated chat app file upload
+        console.log('🔧 Setting up simulated file upload functionality...');
+        
+        const attachBtn = document.getElementById('attachBtn');
+        const fileInput = document.getElementById('fileInput');
+        const removeFileBtn = document.getElementById('removeFile');
+        
+        console.log('📎 Elements found:', {
+            attachBtn: !!attachBtn,
+            fileInput: !!fileInput,
+            removeFileBtn: !!removeFileBtn
+        });
+        
+        if (attachBtn && fileInput) {
+            console.log('✅ File upload elements found, setting up event listeners...');
+            
+            // Attach button click opens file dialog
+            attachBtn.addEventListener('click', (e) => {
+                console.log('📎 Attach button clicked!');
+                e.preventDefault();
+                e.stopPropagation();
+                
+                // Test if file input can be triggered
+                try {
+                    fileInput.click();
+                    console.log('✅ File dialog triggered');
+                } catch (error) {
+                    console.error('❌ Error triggering file dialog:', error);
+                }
+            });
+            
+            // Handle file selection
+            fileInput.addEventListener('change', (e) => {
+                console.log('📁 File input changed! Files:', e.target.files);
+                const file = e.target.files[0];
+                if (file) {
+                    console.log('📄 File selected:', {
+                        name: file.name,
+                        size: file.size,
+                        type: file.type
+                    });
+                    handleFileSelection(file);
+                } else {
+                    console.log('⚠ No file selected');
+                }
+            });
+        } else {
+            console.error('❌ File upload elements missing!');
+            if (!attachBtn) console.error('Missing: attachBtn (id="attachBtn")');
+            if (!fileInput) console.error('Missing: fileInput (id="fileInput")');
+        }
+        
+        function handleFileSelection(file) {
+            console.log('🔄 Processing file selection:', file.name);
+            
+            // Validate file size (max 10MB)
+            const maxSize = 10 * 1024 * 1024; // 10MB
+            if (file.size > maxSize) {
+                console.error('❌ File too large:', file.size, 'bytes');
+                alert('File is too large. Maximum size is 10MB.');
+                return;
+            }
+            
+            console.log('✅ File validation passed, showing preview');
+            showFilePreview(file);
+        }
+        
+        function showFilePreview(file) {
+            console.log('📄 Showing file preview for:', file.name);
+            
+            const filePreview = document.getElementById('filePreview');
+            const fileName = document.getElementById('fileName');
+            const fileSize = document.getElementById('fileSize');
+            const fileIcon = document.getElementById('fileIcon');
+            const imagePreview = document.getElementById('imagePreview');
+            
+            console.log('📄 Preview elements check:', {
+                filePreview: !!filePreview,
+                fileName: !!fileName,
+                fileSize: !!fileSize,
+                fileIcon: !!fileIcon,
+                imagePreview: !!imagePreview
+            });
+            
+            if (!filePreview || !fileName || !fileSize || !fileIcon) {
+                console.error('❌ File preview elements not found');
+                if (!filePreview) console.error('Missing: filePreview (id="filePreview")');
+                if (!fileName) console.error('Missing: fileName (id="fileName")');
+                if (!fileSize) console.error('Missing: fileSize (id="fileSize")');
+                if (!fileIcon) console.error('Missing: fileIcon (id="fileIcon")');
+                return;
+            }
+            
+            // Set file name and size
+            fileName.textContent = file.name;
+            fileSize.textContent = formatFileSize(file.size);
+            
+            // Set file icon based on type
+            fileIcon.innerHTML = getFileIcon(file);
+            
+            // Show image preview if it's an image
+            if (file.type.startsWith('image/')) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const img = imagePreview.querySelector('img');
+                    if (img) {
+                        img.src = e.target.result;
+                        imagePreview.classList.remove('hidden');
+                    }
+                };
+                reader.readAsDataURL(file);
+            } else {
+                imagePreview.classList.add('hidden');
+            }
+            
+            // Show the preview container
+            console.log('✅ Showing file preview container');
+            filePreview.classList.remove('hidden');
+            console.log('✅ File preview displayed successfully!');
+            
+            // Debug: Check if preview is actually visible
+            setTimeout(() => {
+                const isVisible = !filePreview.classList.contains('hidden');
+                console.log('🔍 Preview visibility check:', isVisible);
+            }, 100);
+        }
+        
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+        
+        function getFileIcon(file) {
+            const extension = file.name.split('.').pop().toLowerCase();
+            const type = file.type.toLowerCase();
+            
+            if (type.startsWith('image/')) {
+                return '🖼️';
+            } else if (extension === 'pdf') {
+                return '📄';
+            } else if (type.startsWith('audio/')) {
+                return '🎵';
+            } else if (type.startsWith('video/')) {
+                return '🎥';
+            } else if (['zip', 'rar', '7z'].includes(extension)) {
+                return '📦';
+            } else {
+                return '📄';
+            }
+        }
+        
+        // Remove file button
+        if (document.getElementById('removeFile')) {
+            document.getElementById('removeFile').addEventListener('click', (e) => {
+                e.preventDefault();
+                console.log('🗑️ Remove file clicked');
+                
+                const filePreview = document.getElementById('filePreview');
+                const fileInput = document.getElementById('fileInput');
+                const imagePreview = document.getElementById('imagePreview');
+                
+                if (filePreview) {
+                    filePreview.classList.add('hidden');
+                }
+                
+                if (imagePreview) {
+                    imagePreview.classList.add('hidden');
+                }
+                
+                if (fileInput) {
+                    fileInput.value = '';
+                }
+                
+                console.log('✅ File preview cleared');
+            });
+        }
+        
+        console.log('🚀 Test page setup complete!');
+    </script>
+</body>
+</html>
