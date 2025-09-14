@@ -70,16 +70,6 @@ A real-time chat application built with Django, Django Channels, and Tailwind CS
 7. **Access the application:**
    Open your browser and go to `http://localhost:8000`
 
-## Test Accounts
-
-The application comes with pre-created test users:
-
-- **Username:** `alice`, **Password:** `password123`
-- **Username:** `bob`, **Password:** `password123`
-- **Username:** `charlie`, **Password:** `password123`
-- **Username:** `diana`, **Password:** `password123`
-- **Admin:** `admin`, **Password:** `admin123`
-
 ## Usage
 
 1. **Login:** Use any of the test accounts to login
