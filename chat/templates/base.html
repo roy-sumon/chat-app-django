@@ -184,7 +184,47 @@
     animation: pulse 0.5s infinite;
 }
 
-/* Mobile optimizations */
+        /* Drag and drop styles */
+.drag-over {
+    border: 2px dashed #25d366 !important;
+    background-color: rgba(37, 211, 102, 0.1) !important;
+    transform: scale(1.02);
+    transition: all 0.2s ease;
+}
+
+.drag-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(37, 211, 102, 0.1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    pointer-events: none;
+}
+
+.drag-overlay-content {
+    background: white;
+    padding: 2rem;
+    border-radius: 1rem;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+    text-align: center;
+    border: 2px dashed #25d366;
+}
+
+/* File preview styles */
+.file-preview-image {
+    transition: transform 0.2s ease;
+}
+
+.file-preview-image:hover {
+    transform: scale(1.05);
+}
+
+        /* Mobile optimizations */
 @media (max-width: 768px) {
     .h-screen {
         height: 100vh;

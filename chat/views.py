@@ -1,6 +1,6 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponse
 from django.contrib.auth.models import User
 from django.db.models import Q
 from .models import Conversation, Message, UserProfile
@@ -8,7 +8,10 @@ from django.views.decorators.http import require_http_methods
 from django.core.paginator import Paginator
 from django.views.decorators.csrf import csrf_exempt
 from django.utils import timezone
+from django.middleware.csrf import get_token
 import json
+import os
+from django.core.files.storage import default_storage
 
 @login_required
 def chat_home(request):
@@ -36,10 +39,12 @@ def chat_home(request):
     conversation_list = []
     for conv in conversations:
         other_user = conv.participants.exclude(id=request.user.id).first()
-        conversation_list.append({
-            'conversation': conv,
-            'other_user': other_user
-        })
+        # Only include conversations that have another participant
+        if other_user:
+            conversation_list.append({
+                'conversation': conv,
+                'other_user': other_user
+            })
     
     # Get all users for starting new conversations
     users = User.objects.exclude(id=request.user.id).select_related('userprofile')
@@ -119,6 +124,10 @@ def debug_chat(request):
     """Debug page for troubleshooting chat issues"""
     return render(request, 'debug_chat.html')
 
+def simple_test_page(request):
+    """Simple test page for file upload debugging"""
+    return render(request, 'test_upload.html')
+
 @require_http_methods(["GET"])
 def debug_db_check(request):
     """API endpoint to check database state"""
@@ -167,6 +176,100 @@ def debug_db_check(request):
             'error': str(e),
             'type': type(e).__name__
         }, status=500)
+
+@login_required
+@require_http_methods(["POST"])
+def upload_file(request):
+    """Handle file upload for chat messages"""
+    try:
+        if 'file' not in request.FILES:
+            return JsonResponse({'error': 'No file provided'}, status=400)
+        
+        conversation_id = request.POST.get('conversation_id')
+        if not conversation_id:
+            return JsonResponse({'error': 'Conversation ID required'}, status=400)
+        
+        # Verify user has access to this conversation
+        try:
+            conversation = Conversation.objects.get(
+                id=conversation_id,
+                participants=request.user
+            )
+        except Conversation.DoesNotExist:
+            return JsonResponse({'error': 'Conversation not found'}, status=404)
+        
+        uploaded_file = request.FILES['file']
+        
+        # Validate file size (10MB max)
+        if uploaded_file.size > 10 * 1024 * 1024:
+            return JsonResponse({'error': 'File size cannot exceed 10MB'}, status=400)
+        
+        # Validate file extension
+        allowed_extensions = [
+            'jpg', 'jpeg', 'png', 'gif', 'webp', 'svg',  # Images
+            'pdf', 'doc', 'docx', 'txt', 'rtf',  # Documents
+            'xls', 'xlsx', 'csv',  # Spreadsheets
+            'ppt', 'pptx',  # Presentations
+            'zip', 'rar', '7z',  # Archives
+            'mp3', 'wav', 'ogg', 'aac',  # Audio
+            'mp4', 'avi', 'mov', 'webm'  # Video
+        ]
+        
+        file_ext = uploaded_file.name.split('.')[-1].lower() if '.' in uploaded_file.name else ''
+        if file_ext not in allowed_extensions:
+            return JsonResponse({'error': f'File type .{file_ext} is not allowed'}, status=400)
+        
+        # Create message with file
+        message = Message.objects.create(
+            conversation=conversation,
+            sender=request.user,
+            content=request.POST.get('content', ''),  # Optional text content
+            file=uploaded_file,
+            file_name=uploaded_file.name,
+            file_size=uploaded_file.size
+        )
+        
+        # Return file message data
+        return JsonResponse({
+            'success': True,
+            'file_id': message.id,
+            'file_name': message.file_name,
+            'file_url': message.file.url if message.file else None,
+            'file_size': message.format_file_size(),
+            'is_image': message.is_image,
+            'message_id': message.id
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Upload failed: {str(e)}'
+        }, status=500)
+
+@login_required
+def test_file_upload(request):
+    """Test endpoint for file upload debugging"""
+    if request.method == 'GET':
+        return render(request, 'test_file_upload.html')
+    
+    elif request.method == 'POST':
+        try:
+            if 'file' not in request.FILES:
+                return JsonResponse({'error': 'No file provided'}, status=400)
+            
+            uploaded_file = request.FILES['file']
+            
+            return JsonResponse({
+                'success': True,
+                'file_name': uploaded_file.name,
+                'file_size': uploaded_file.size,
+                'content_type': uploaded_file.content_type,
+                'message': 'File upload test successful!'
+            })
+            
+        except Exception as e:
+            return JsonResponse({
+                'error': f'Test upload failed: {str(e)}'
+            }, status=500)
 
 @login_required
 def get_messages(request, conversation_id):

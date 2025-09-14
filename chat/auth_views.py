@@ -3,7 +3,7 @@ from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.models import User
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
-from django.db import IntegrityError
+from django.db import IntegrityError, transaction
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
 from django.utils import timezone
@@ -17,15 +17,31 @@ def login_view(request):
     # Clear any conflicting session data first
     request.session.pop('login_success', None)
     
+    # Clear ANY existing Django messages to prevent conflicts
+    storage = messages.get_messages(request)
+    existing_messages = list(storage)  # Consume all messages to clear them
+    if existing_messages:
+        print(f"DEBUG: Login view - Cleared {len(existing_messages)} existing Django messages:")
+        for msg in existing_messages:
+            print(f"DEBUG: Cleared message: {msg.message} (level: {msg.level_tag})")
+    
+    # Check for signup success message first (highest priority)
+    print(f"DEBUG: Login view - session keys: {list(request.session.keys())}")
+    if 'signup_success' in request.session:
+        signup_message = request.session.pop('signup_success')
+        messages.success(request, signup_message, extra_tags='toast')
+        print(f"DEBUG: Login view - showing signup success message: {signup_message}")
     # Check for logout success message in session (only show once)
-    if 'logout_success' in request.session and not request.session.get('message_shown'):
+    elif 'logout_success' in request.session and not request.session.get('message_shown'):
         messages.success(request, request.session['logout_success'], extra_tags='toast')
         del request.session['logout_success']
         request.session['message_shown'] = True
-    # Only show account deletion message if there's no logout message and no message has been shown
+    # Only show account deletion message if there's no other message and no message has been shown
     elif request.GET.get('deleted') == '1' and 'logout_success' not in request.session and not request.session.get('message_shown'):
         messages.success(request, 'Your account has been successfully deleted. The username is now available for new registrations.', extra_tags='toast')
         request.session['message_shown'] = True
+    else:
+        print(f"DEBUG: Login view - No signup_success message found in session")
     
     if request.method == 'POST':
         username = request.POST['username']
@@ -42,6 +58,8 @@ def login_view(request):
             # Clean up any previous session messages to avoid conflicts
             request.session.pop('logout_success', None)
             request.session.pop('message_shown', None)
+            request.session.pop('from_signup', None)
+            request.session.pop('signup_success', None)
             request.session['login_success'] = f'Welcome back, {user.get_full_name() or user.username}! You have successfully logged in.'
             return redirect('chat_home')
         else:
@@ -62,7 +80,10 @@ def signup_view(request):
         first_name = request.POST.get('first_name', '')
         last_name = request.POST.get('last_name', '')
         
+        print(f"DEBUG: Signup attempt - username: {username}, email: {email}, has_password: {bool(password)}, passwords_match: {password == password_confirm}")
+        
         if password != password_confirm:
+            print(f"DEBUG: Signup failed - passwords do not match")
             messages.error(request, 'Passwords do not match. Please try again.', extra_tags='toast')
             return render(request, 'auth/signup.html', {
                 'error': True,
@@ -72,25 +93,69 @@ def signup_view(request):
                 'last_name': last_name
             })
         
-        try:
-            user = User.objects.create_user(
-                username=username,
-                email=email,
-                password=password,
-                first_name=first_name,
-                last_name=last_name
-            )
-            # Create user profile
-            UserProfile.objects.create(
-                user=user,
-                avatar=f'https://ui-avatars.com/api/?background=random&name={first_name}+{last_name}&size=128'
-            )
-            messages.success(request, f'Account created successfully! Welcome to ChatApp, {first_name or username}! Please log in with your credentials.', extra_tags='toast')
-            return redirect('login')
-        except IntegrityError:
+        # Check if username already exists before creating
+        username_exists = User.objects.filter(username=username).exists()
+        print(f"DEBUG: Username '{username}' exists check: {username_exists}")
+        if username_exists:
+            print(f"DEBUG: Signup failed - username already exists")
             messages.error(request, f'Username "{username}" already exists. Please choose a different username.', extra_tags='toast')
             return render(request, 'auth/signup.html', {
                 'error': True,
+                'email': email,
+                'first_name': first_name,
+                'last_name': last_name
+            })
+        
+        print(f"DEBUG: Starting user creation process for username: {username}")
+        try:
+            with transaction.atomic():
+                user = User.objects.create_user(
+                    username=username,
+                    email=email,
+                    password=password,
+                    first_name=first_name,
+                    last_name=last_name
+                )
+                print(f"DEBUG: User {username} created successfully with ID: {user.id}")
+                
+                # Create user profile (use get_or_create to avoid unique constraint issues)
+                profile, created = UserProfile.objects.get_or_create(
+                    user=user,
+                    defaults={
+                        'avatar': f'https://ui-avatars.com/api/?background=random&name={first_name}+{last_name}&size=128'
+                    }
+                )
+                if not created:
+                    print(f"DEBUG: UserProfile for user {username} already existed, using existing profile")
+                else:
+                    print(f"DEBUG: Created new UserProfile for user {username}")
+            
+            # SUCCESS - User created successfully
+            # Clear ALL existing Django messages to prevent conflicts
+            storage = messages.get_messages(request)
+            list(storage)  # Consume all messages to clear them
+            
+            # Clear ALL session data that might contain old messages
+            request.session.pop('logout_success', None)
+            request.session.pop('message_shown', None)
+            request.session.pop('login_success', None)
+            
+            # Use session-based message instead of Django messages to avoid conflicts
+            signup_msg = f'Account created successfully! Welcome to ChatApp, {first_name or username}! Please log in with your credentials.'
+            request.session['signup_success'] = signup_msg
+            print(f"DEBUG: Signup success - Set session message for user {username}: {signup_msg}")
+            print(f"DEBUG: Signup success - Session keys after setting: {list(request.session.keys())}")
+            
+            return redirect('login')
+            
+        except Exception as e:
+            # Handle any other errors during user creation
+            print(f"DEBUG: Signup failed - exception occurred: {type(e).__name__}: {str(e)}")
+            error_msg = f'An error occurred while creating your account: {str(e)}. Please try again.'
+            messages.error(request, error_msg, extra_tags='toast')
+            return render(request, 'auth/signup.html', {
+                'error': True,
+                'username': username,
                 'email': email,
                 'first_name': first_name,
                 'last_name': last_name
@@ -115,6 +180,8 @@ def logout_view(request):
     # Clean up any previous session messages to avoid conflicts
     request.session.pop('login_success', None)
     request.session.pop('message_shown', None)
+    request.session.pop('from_signup', None)
+    request.session.pop('signup_success', None)
     # Clear any URL parameters that might cause conflicts
     request.session.pop('deleted_param', None)
     request.session['logout_success'] = f'Goodbye, {username}! You have been successfully logged out.'

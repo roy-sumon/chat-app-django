@@ -20,6 +20,8 @@ urlpatterns = [
     path('delete-conversation/<int:conversation_id>/', views.delete_conversation, name='delete_conversation'),
     path('restore-message/<int:message_id>/', views.restore_message, name='restore_message'),
     path('edit-message/<int:message_id>/', views.edit_message, name='edit_message'),
+    path('upload-file/', views.upload_file, name='upload_file'),
+    path('test-file-upload/', views.test_file_upload, name='test_file_upload'),
     
     # Debug/Test views
     path('test-websocket/', websocket_test, name='websocket_test'),

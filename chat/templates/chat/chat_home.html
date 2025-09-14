@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load static %}
 
 {% block title %}Chat - WhatsApp Clone{% endblock %}
 
@@ -186,6 +187,7 @@
                     </div>
                 </div>
                 
+                {% if selected_other_user %}
                 <img src="{{ selected_other_user.userprofile.get_avatar_url }}" 
                      alt="Avatar" class="w-10 h-10 rounded-full object-cover">
                 <div class="flex-1">
@@ -199,6 +201,16 @@
                             Last seen {{ selected_other_user.userprofile.last_seen|timesince }} ago
                         {% endif %}
                     </p>
+                {% else %}
+                <div class="w-10 h-10 bg-gray-300 dark:bg-gray-600 rounded-full"></div>
+                <div class="flex-1">
+                    <h3 class="font-semibold text-gray-900 dark:text-white">
+                        Unknown User
+                    </h3>
+                    <p id="userStatus" class="text-sm text-gray-500 dark:text-gray-400">
+                        Offline
+                    </p>
+                {% endif %}
                     <div id="connectionStatus" class="text-xs text-yellow-500 hidden">
                         Connecting...
                     </div>
@@ -273,7 +285,72 @@
                                     {% if message.is_deleted %}
                                         <p class="text-sm">{{ message.display_content }}</p>
                                     {% else %}
-                                        <p class="message-content">{{ message.content }}</p>
+                                        <!-- File Messages -->
+                                        {% if message.file %}
+                                            {% if message.is_image %}
+                                                <!-- Image Message -->
+                                                <div class="file-message image-message">
+                                                    <img src="{{ message.file.url }}" 
+                                                         alt="{{ message.file_name }}"
+                                                         class="max-w-full max-h-64 rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
+                                                         onclick="window.open('{{ message.file.url }}', '_blank')">
+                                                    {% if message.content %}
+                                                        <p class="message-content mt-2">{{ message.content }}</p>
+                                                    {% endif %}
+                                                </div>
+                                            {% else %}
+                                                <!-- File Message -->
+                                                <div class="file-message flex items-center space-x-3 p-3 bg-gray-50 dark:bg-gray-600 rounded-lg">
+                                                    <div class="file-icon text-gray-500 dark:text-gray-400">
+                                                        <!-- File type icons -->
+                                                        {% if message.file_extension == 'pdf' %}
+                                                            <svg class="w-8 h-8 text-red-500" fill="currentColor" viewBox="0 0 20 20">
+                                                                <path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clip-rule="evenodd"></path>
+                                                            </svg>
+                                                        {% elif message.file_extension in 'jpg,jpeg,png,gif,webp,svg' %}
+                                                            <svg class="w-8 h-8 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                                                                <path fill-rule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clip-rule="evenodd"></path>
+                                                            </svg>
+                                                        {% elif message.file_extension in 'mp3,wav,ogg,aac' %}
+                                                            <svg class="w-8 h-8 text-purple-500" fill="currentColor" viewBox="0 0 20 20">
+                                                                <path d="M18 3a1 1 0 00-1.196-.98l-10 2A1 1 0 006 5v9.114A4.369 4.369 0 005 14c-1.657 0-3 .895-3 2s1.343 2 3 2 3-.895 3-2V7.82l8-1.6v5.894A4.37 4.37 0 0015 12c-1.657 0-3 .895-3 2s1.343 2 3 2 3-.895 3-2V3z"></path>
+                                                            </svg>
+                                                        {% elif message.file_extension in 'mp4,avi,mov,webm' %}
+                                                            <svg class="w-8 h-8 text-blue-500" fill="currentColor" viewBox="0 0 20 20">
+                                                                <path d="M2 6a2 2 0 012-2h6l2 2h6a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z"></path>
+                                                                <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m7 10 5 3V7l-5 3z"></path>
+                                                            </svg>
+                                                        {% elif message.file_extension in 'zip,rar,7z' %}
+                                                            <svg class="w-8 h-8 text-yellow-500" fill="currentColor" viewBox="0 0 20 20">
+                                                                <path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z"></path>
+                                                            </svg>
+                                                        {% else %}
+                                                            <svg class="w-8 h-8 text-gray-500" fill="currentColor" viewBox="0 0 20 20">
+                                                                <path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clip-rule="evenodd"></path>
+                                                            </svg>
+                                                        {% endif %}
+                                                    </div>
+                                                    <div class="file-info flex-1">
+                                                        <p class="font-medium text-sm text-gray-900 dark:text-white">{{ message.file_name }}</p>
+                                                        <p class="text-xs text-gray-500 dark:text-gray-400">{{ message.format_file_size }}</p>
+                                                    </div>
+                                                    <a href="{{ message.file.url }}" 
+                                                       download="{{ message.file_name }}"
+                                                       class="download-btn p-2 bg-gray-200 dark:bg-gray-500 hover:bg-gray-300 dark:hover:bg-gray-400 rounded-full transition-colors">
+                                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                                                        </svg>
+                                                    </a>
+                                                </div>
+                                                {% if message.content %}
+                                                    <p class="message-content mt-2">{{ message.content }}</p>
+                                                {% endif %}
+                                            {% endif %}
+                                        {% else %}
+                                            <!-- Text Message -->
+                                            <p class="message-content">{{ message.content }}</p>
+                                        {% endif %}
+                                        
                                         {% if message.is_edited %}
                                             <span class="text-xs text-gray-500 dark:text-gray-400 italic">(edited)</span>
                                         {% endif %}
@@ -322,16 +399,49 @@
             
             <!-- Message Input -->
             <div class="bg-gray-100 dark:bg-gray-700 p-2 md:p-4 border-t border-gray-200 dark:border-gray-600 safe-area-pb">
+                <!-- File Preview Area -->
+                <div id="filePreview" class="hidden mb-3 p-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-600">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center space-x-3">
+                            <div id="fileIcon" class="text-gray-400"></div>
+                            <div>
+                                <p id="fileName" class="text-sm font-medium text-gray-900 dark:text-white"></p>
+                                <p id="fileSize" class="text-xs text-gray-500 dark:text-gray-400"></p>
+                            </div>
+                        </div>
+                        <button id="removeFile" class="text-red-500 hover:text-red-700 transition-colors">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                            </svg>
+                        </button>
+                    </div>
+                    <div id="imagePreview" class="mt-2 hidden">
+                        <img class="max-w-full h-32 object-cover rounded-lg" alt="Preview">
+                    </div>
+                </div>
+                
                 <div class="flex items-center space-x-2 md:space-x-3">
                     <button id="emojiBtn" class="p-2 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-full transition-colors touch-manipulation">
                         <svg class="w-5 h-5 md:w-6 md:h-6 text-gray-600 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                         </svg>
                     </button>
+                    
+                    <!-- File Attachment Button -->
+                    <button id="attachBtn" class="p-2 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-full transition-colors touch-manipulation">
+                        <svg class="w-5 h-5 md:w-6 md:h-6 text-gray-600 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"></path>
+                        </svg>
+                    </button>
+                    
+                    <!-- Hidden File Input -->
+                    <input type="file" id="fileInput" class="hidden" accept=".jpg,.jpeg,.png,.gif,.webp,.svg,.pdf,.doc,.docx,.txt,.rtf,.xls,.xlsx,.csv,.ppt,.pptx,.zip,.rar,.7z,.mp3,.wav,.ogg,.aac,.mp4,.avi,.mov,.webm">
+                    
                     <div class="flex-1 relative">
                         <input type="text" id="messageInput" placeholder="Type a message..." 
                                class="w-full px-3 md:px-4 py-2 md:py-3 rounded-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-whatsapp-green text-sm md:text-base">
                     </div>
+                    
                     <button id="sendBtn" class="p-2 md:p-3 bg-whatsapp-green hover:bg-whatsapp-teal text-white rounded-full transition-colors touch-manipulation min-w-[44px] min-h-[44px]">
                         <svg class="w-4 h-4 md:w-5 md:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
@@ -556,5 +666,60 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 </script>
-<script src="{% load static %}{% static 'js/chat.js' %}"></script>
+<script>
+    // Simple test to verify JavaScript execution
+    console.log('🔧 JavaScript execution test - Template loaded successfully');
+    console.log('🔍 Current URL:', window.location.href);
+    
+    // Test if basic DOM manipulation works
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('🚀 DOM ready - Template JavaScript executing');
+        
+        // Check if attach button exists immediately
+        const attachBtn = document.getElementById('attachBtn');
+        console.log('📎 Attach button found in template script:', !!attachBtn);
+        
+        if (attachBtn) {
+            console.log('📎 Attach button details:', {
+                id: attachBtn.id,
+                className: attachBtn.className,
+                tagName: attachBtn.tagName
+            });
+            
+            // Add a direct click listener for testing
+            attachBtn.addEventListener('click', function(e) {
+                console.log('📎 DIRECT CLICK TEST - Attach button was clicked!');
+                
+                // Try to trigger file input
+                const fileInput = document.getElementById('fileInput');
+                if (fileInput) {
+                    console.log('📁 Triggering file input directly...');
+                    e.preventDefault();
+                    e.stopPropagation();
+                    fileInput.click();
+                } else {
+                    console.error('❌ File input not found!');
+                }
+            });
+            
+            // Add file input change listener
+            const fileInput = document.getElementById('fileInput');
+            if (fileInput) {
+                fileInput.addEventListener('change', function(e) {
+                    console.log('📄 File selected via direct listener:', e.target.files);
+                    const file = e.target.files[0];
+                    if (file) {
+                        alert(`File selected: ${file.name} (${file.size} bytes)`);
+                        console.log('📄 File details:', {
+                            name: file.name,
+                            size: file.size,
+                            type: file.type
+                        });
+                    }
+                });
+            }
+        }
+    });
+</script>
+<script src="{% static 'js/chat.js' %}"></script>
 {% endblock %}

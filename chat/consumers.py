@@ -186,6 +186,32 @@ class ChatConsumer(AsyncWebsocketConsumer):
                             }
                         )
             
+            elif message_type == 'file_message':
+                # Handle file message notification (after file upload via HTTP)
+                message_id = text_data_json.get('message_id')
+                if message_id:
+                    message_data = await self.get_file_message(message_id)
+                    if message_data:
+                        # Send file message to room group
+                        await self.channel_layer.group_send(
+                            self.room_group_name,
+                            {
+                                'type': 'file_message_update',
+                                'message_id': message_data['id'],
+                                'content': message_data['content'],
+                                'file_url': message_data['file_url'],
+                                'file_name': message_data['file_name'],
+                                'file_size': message_data['file_size'],
+                                'file_icon': message_data['file_icon'],
+                                'message_type': message_data['message_type'],
+                                'is_image': message_data['is_image'],
+                                'username': self.user.username,
+                                'user_id': self.user.id,
+                                'timestamp': message_data['timestamp'],
+                                'status': 'sent'
+                            }
+                        )
+                        
             elif message_type == 'user_activity':
                 activity = text_data_json.get('activity', 'active')  # 'active', 'away', 'busy'
                 await self.update_user_activity(activity)
@@ -277,6 +303,24 @@ class ChatConsumer(AsyncWebsocketConsumer):
             'type': 'message_delete',
             'message_id': event['message_id'],
             'deleted_by': event['deleted_by']
+        }))
+    
+    async def file_message_update(self, event):
+        # Send file message to WebSocket
+        await self.send(text_data=json.dumps({
+            'type': 'file_message',
+            'message_id': event['message_id'],
+            'content': event['content'],
+            'file_url': event['file_url'],
+            'file_name': event['file_name'],
+            'file_size': event['file_size'],
+            'file_icon': event['file_icon'],
+            'message_type': event['message_type'],
+            'is_image': event['is_image'],
+            'username': event['username'],
+            'user_id': event['user_id'],
+            'timestamp': event['timestamp'],
+            'status': event['status']
         }))
     
     async def user_activity_update(self, event):
@@ -407,6 +451,24 @@ class ChatConsumer(AsyncWebsocketConsumer):
             message = Message.objects.get(id=message_id, sender=self.user)
             message.soft_delete(self.user)
             return {'success': True}
+        except Message.DoesNotExist:
+            return None
+    
+    @database_sync_to_async
+    def get_file_message(self, message_id):
+        try:
+            message = Message.objects.get(id=message_id)
+            return {
+                'id': message.id,
+                'content': message.content,
+                'file_url': message.file.url if message.file else None,
+                'file_name': message.file_name,
+                'file_size': message.format_file_size(),
+                'file_icon': message.get_file_icon(),
+                'message_type': message.message_type,
+                'is_image': message.is_image,
+                'timestamp': message.timestamp.isoformat()
+            }
         except Message.DoesNotExist:
             return None
     

@@ -88,6 +88,10 @@ class ChatApp {
                 this.showMessageSearchModal();
             }
         });
+        
+        // File upload functionality
+        console.log('📁 Initializing file upload functionality...');
+        this.setupFileUpload();
     }
     
     setupModal() {
@@ -445,6 +449,7 @@ class ChatApp {
     handleWebSocketMessage(data) {
         switch (data.type) {
             case 'message':
+            case 'file_message':
                 this.displayMessage(data);
                 this.scrollToBottom();
                 this.playReceiveSound();
@@ -482,6 +487,12 @@ class ChatApp {
         }
         
         const message = messageInput.value.trim();
+        
+        // If there's a file selected, send file message
+        if (this.selectedFile) {
+            this.sendFileMessage();
+            return;
+        }
         
         if (!message) {
             return;
@@ -570,9 +581,25 @@ class ChatApp {
         const messageContent = document.createElement('div');
         messageContent.className = `max-w-xs sm:max-w-sm md:max-w-md lg:max-w-lg px-3 md:px-4 py-2 rounded-lg message-bubble ${bubbleClass} shadow-md`;
         
-        const messageTextP = document.createElement('p');
-        messageTextP.className = 'message-text';
-        messageTextP.textContent = data.message || 'Empty message';
+        // Handle file messages
+        if (data.file_url || data.file_name) {
+            const fileContainer = this.createFileMessageElement(data);
+            messageContent.appendChild(fileContainer);
+            
+            // Add text content if present
+            if (data.message && data.message.trim()) {
+                const messageTextP = document.createElement('p');
+                messageTextP.className = 'message-text mt-2';
+                messageTextP.textContent = data.message;
+                messageContent.appendChild(messageTextP);
+            }
+        } else {
+            // Regular text message
+            const messageTextP = document.createElement('p');
+            messageTextP.className = 'message-text';
+            messageTextP.textContent = data.message || 'Empty message';
+            messageContent.appendChild(messageTextP);
+        }
         
         const timeDiv = document.createElement('div');
         timeDiv.className = 'flex items-center justify-end mt-1 space-x-1';
@@ -594,7 +621,6 @@ class ChatApp {
             timeDiv.appendChild(statusSpan);
         }
         
-        messageContent.appendChild(messageTextP);
         messageContent.appendChild(timeDiv);
         messageDiv.appendChild(messageContent);
         
@@ -1438,6 +1464,469 @@ class ChatApp {
             Notification.requestPermission();
         }
     }
+    
+    // === FILE UPLOAD FUNCTIONALITY ===
+    
+    setupFileUpload() {
+        console.log('🔧 Setting up file upload functionality...');
+        
+        // Retry mechanism to ensure elements are available
+        const initializeFileUpload = (attempt = 1) => {
+            const attachBtn = document.getElementById('attachBtn');
+            const fileInput = document.getElementById('fileInput');
+            const removeFileBtn = document.getElementById('removeFile');
+            
+            console.log(`📎 Attempt ${attempt} - Elements found:`, {
+                attachBtn: !!attachBtn,
+                fileInput: !!fileInput,
+                removeFileBtn: !!removeFileBtn
+            });
+            
+            if (attachBtn && fileInput) {
+                console.log('✅ File upload elements found, setting up event listeners...');
+                
+                // Clear any existing listeners to prevent duplicates
+                const newAttachBtn = attachBtn.cloneNode(true);
+                attachBtn.parentNode.replaceChild(newAttachBtn, attachBtn);
+                
+                // Attach button click opens file dialog
+                newAttachBtn.addEventListener('click', (e) => {
+                    console.log('📎 Attach button clicked!');
+                    e.preventDefault();
+                    e.stopPropagation();
+                    
+                    // Test if file input can be triggered
+                    try {
+                        fileInput.click();
+                        console.log('✅ File dialog triggered');
+                    } catch (error) {
+                        console.error('❌ Error triggering file dialog:', error);
+                    }
+                });
+            
+                // Handle file selection
+                fileInput.addEventListener('change', (e) => {
+                    console.log('📁 File input changed! Files:', e.target.files);
+                    const file = e.target.files[0];
+                    if (file) {
+                        console.log('📄 File selected:', {
+                            name: file.name,
+                            size: file.size,
+                            type: file.type
+                        });
+                        this.handleFileSelection(file);
+                    } else {
+                        console.log('⚠ No file selected');
+                    }
+                });
+                
+                // Remove file button
+                if (removeFileBtn) {
+                    removeFileBtn.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        this.clearFilePreview();
+                    });
+                }
+                
+                // Drag and drop functionality
+                this.setupDragAndDrop();
+                
+                console.log('✅ File upload initialization completed successfully!');
+                
+            } else {
+                console.error(`❌ Attempt ${attempt} - File upload elements missing!`);
+                if (!attachBtn) console.error('Missing: attachBtn (id="attachBtn")');
+                if (!fileInput) console.error('Missing: fileInput (id="fileInput")');
+                
+                // Retry up to 3 times with increasing delay
+                if (attempt < 3) {
+                    console.log(`🔁 Retrying in ${attempt * 500}ms...`);
+                    setTimeout(() => initializeFileUpload(attempt + 1), attempt * 500);
+                } else {
+                    console.error('❌ Failed to initialize file upload after 3 attempts');
+                }
+            }
+        };
+        
+        // Start initialization
+        initializeFileUpload();
+        
+        // Fallback: Add a global click handler as backup
+        document.addEventListener('click', (e) => {
+            if (e.target && (e.target.id === 'attachBtn' || e.target.closest('#attachBtn'))) {
+                console.log('🔄 Fallback attach button handler triggered');
+                const fileInput = document.getElementById('fileInput');
+                if (fileInput) {
+                    fileInput.click();
+                    console.log('🔄 Fallback file dialog opened');
+                } else {
+                    console.error('🔄 Fallback failed - no file input found');
+                }
+            }
+        });
+    }
+    
+    handleFileSelection(file) {
+        console.log('🔄 Processing file selection:', file.name);
+        
+        // Validate file size (max 10MB)
+        const maxSize = 10 * 1024 * 1024; // 10MB
+        if (file.size > maxSize) {
+            console.error('❌ File too large:', file.size, 'bytes');
+            alert('File is too large. Maximum size is 10MB.');
+            return;
+        }
+        
+        // Store selected file
+        this.selectedFile = file;
+        
+        // Show file preview
+        this.showFilePreview(file);
+    }
+    
+    showFilePreview(file) {
+        console.log('📄 Showing file preview for:', file.name);
+        
+        const filePreview = document.getElementById('filePreview');
+        const fileName = document.getElementById('fileName');
+        const fileSize = document.getElementById('fileSize');
+        const fileIcon = document.getElementById('fileIcon');
+        const imagePreview = document.getElementById('imagePreview');
+        
+        console.log('📄 Preview elements check:', {
+            filePreview: !!filePreview,
+            fileName: !!fileName,
+            fileSize: !!fileSize,
+            fileIcon: !!fileIcon,
+            imagePreview: !!imagePreview
+        });
+        
+        if (!filePreview || !fileName || !fileSize || !fileIcon) {
+            console.error('❌ File preview elements not found');
+            if (!filePreview) console.error('Missing: filePreview (id="filePreview")');
+            if (!fileName) console.error('Missing: fileName (id="fileName")');
+            if (!fileSize) console.error('Missing: fileSize (id="fileSize")');
+            if (!fileIcon) console.error('Missing: fileIcon (id="fileIcon")');
+            return;
+        }
+        
+        // Set file name and size
+        fileName.textContent = file.name;
+        fileSize.textContent = this.formatFileSize(file.size);
+        
+        // Set file icon based on type
+        fileIcon.innerHTML = this.getFileIcon(file);
+        
+        // Show image preview if it's an image
+        if (file.type.startsWith('image/')) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const img = imagePreview.querySelector('img');
+                if (img) {
+                    img.src = e.target.result;
+                    imagePreview.classList.remove('hidden');
+                }
+            };
+            reader.readAsDataURL(file);
+        } else {
+            imagePreview.classList.add('hidden');
+        }
+        
+        // Show the preview container
+        console.log('✅ Showing file preview container');
+        filePreview.classList.remove('hidden');
+        console.log('✅ File preview displayed successfully!');
+        
+        // Debug: Check if preview is actually visible
+        setTimeout(() => {
+            const isVisible = !filePreview.classList.contains('hidden');
+            console.log('🔍 Preview visibility check:', isVisible);
+        }, 100);
+    }
+    
+    clearFilePreview() {
+        const filePreview = document.getElementById('filePreview');
+        const fileInput = document.getElementById('fileInput');
+        const imagePreview = document.getElementById('imagePreview');
+        
+        if (filePreview) {
+            filePreview.classList.add('hidden');
+        }
+        
+        if (imagePreview) {
+            imagePreview.classList.add('hidden');
+        }
+        
+        if (fileInput) {
+            fileInput.value = '';
+        }
+        
+        this.selectedFile = null;
+    }
+    
+    formatFileSize(bytes) {
+        if (bytes === 0) return '0 Bytes';
+        
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+    
+    getFileIcon(file) {
+        const extension = file.name.split('.').pop().toLowerCase();
+        const type = file.type.toLowerCase();
+        
+        if (type.startsWith('image/')) {
+            return `<svg class="w-8 h-8 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clip-rule="evenodd"></path>
+                    </svg>`;
+        } else if (extension === 'pdf') {
+            return `<svg class="w-8 h-8 text-red-500" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clip-rule="evenodd"></path>
+                    </svg>`;
+        } else if (type.startsWith('audio/')) {
+            return `<svg class="w-8 h-8 text-purple-500" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M18 3a1 1 0 00-1.196-.98l-10 2A1 1 0 006 5v9.114A4.369 4.369 0 005 14c-1.657 0-3 .895-3 2s1.343 2 3 2 3-.895 3-2V7.82l8-1.6v5.894A4.37 4.37 0 0015 12c-1.657 0-3 .895-3 2s1.343 2 3 2 3-.895 3-2V3z"></path>
+                    </svg>`;
+        } else if (type.startsWith('video/')) {
+            return `<svg class="w-8 h-8 text-blue-500" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M2 6a2 2 0 012-2h6l2 2h6a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z"></path>
+                        <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m7 10 5 3V7l-5 3z"></path>
+                    </svg>`;
+        } else if (['zip', 'rar', '7z'].includes(extension)) {
+            return `<svg class="w-8 h-8 text-yellow-500" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z"></path>
+                    </svg>`;
+        } else {
+            return `<svg class="w-8 h-8 text-gray-500" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clip-rule="evenodd"></path>
+                    </svg>`;
+        }
+    }
+    
+    setupDragAndDrop() {
+        const messagesContainer = document.getElementById('messagesContainer');
+        const messageInput = document.getElementById('messageInput');
+        
+        if (!messagesContainer && !messageInput) return;
+        
+        const targets = [messagesContainer, messageInput].filter(Boolean);
+        
+        targets.forEach(target => {
+            target.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                target.classList.add('drag-over');
+            });
+            
+            target.addEventListener('dragleave', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                target.classList.remove('drag-over');
+            });
+            
+            target.addEventListener('drop', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                target.classList.remove('drag-over');
+                
+                const files = e.dataTransfer.files;
+                if (files.length > 0) {
+                    this.handleFileSelection(files[0]);
+                }
+            });
+        });
+    }
+    
+    async sendFileMessage() {
+        if (!this.selectedFile) {
+            console.error('No file selected');
+            return;
+        }
+        
+        if (!this.chatSocket || this.chatSocket.readyState !== WebSocket.OPEN) {
+            alert('Not connected to chat server');
+            return;
+        }
+        
+        const messageInput = document.getElementById('messageInput');
+        const textContent = messageInput ? messageInput.value.trim() : '';
+        
+        try {
+            // Show uploading indicator
+            this.showUploadingIndicator();
+            
+            // Create FormData for file upload
+            const formData = new FormData();
+            formData.append('file', this.selectedFile);
+            formData.append('content', textContent);
+            formData.append('conversation_id', this.conversationId);
+            
+            // Upload file via HTTP POST
+            const response = await fetch('/upload-file/', {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': this.getCsrfToken()
+                },
+                body: formData
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                // Send WebSocket message with file info
+                const messageData = {
+                    'type': 'file_message',
+                    'message': textContent,
+                    'message_id': data.message_id,
+                    'file_name': data.file_name,
+                    'file_url': data.file_url,
+                    'file_size': data.file_size,
+                    'is_image': data.is_image
+                };
+                
+                this.chatSocket.send(JSON.stringify(messageData));
+                
+                // Clear input and file preview
+                if (messageInput) messageInput.value = '';
+                this.clearFilePreview();
+                this.stopTyping();
+                
+                // Enable notifications
+                this.requestNotificationPermission();
+                setTimeout(() => {
+                    this.allowNotifications = true;
+                }, 1000);
+                
+            } else {
+                throw new Error(data.error || 'File upload failed');
+            }
+            
+        } catch (error) {
+            console.error('Error uploading file:', error);
+            alert('Failed to upload file: ' + error.message);
+        } finally {
+            this.hideUploadingIndicator();
+        }
+    }
+    
+    showUploadingIndicator() {
+        const sendBtn = document.getElementById('sendBtn');
+        if (sendBtn) {
+            sendBtn.innerHTML = `
+                <svg class="w-4 h-4 md:w-5 md:h-5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                </svg>
+            `;
+            sendBtn.disabled = true;
+        }
+    }
+    
+    hideUploadingIndicator() {
+        const sendBtn = document.getElementById('sendBtn');
+        if (sendBtn) {
+            sendBtn.innerHTML = `
+                <svg class="w-4 h-4 md:w-5 md:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
+                </svg>
+            `;
+            sendBtn.disabled = false;
+        }
+    }
+    
+    createFileMessageElement(data) {
+        const fileContainer = document.createElement('div');
+        
+        if (data.is_image && data.file_url) {
+            // Image message
+            fileContainer.className = 'file-message image-message';
+            const img = document.createElement('img');
+            img.src = data.file_url;
+            img.alt = data.file_name || 'Image';
+            img.className = 'max-w-full max-h-64 rounded-lg cursor-pointer hover:opacity-90 transition-opacity';
+            img.onclick = () => window.open(data.file_url, '_blank');
+            fileContainer.appendChild(img);
+        } else {
+            // Regular file message
+            fileContainer.className = 'file-message flex items-center space-x-3 p-3 bg-gray-50 dark:bg-gray-600 rounded-lg';
+            
+            // File icon
+            const iconDiv = document.createElement('div');
+            iconDiv.className = 'file-icon text-gray-500 dark:text-gray-400';
+            iconDiv.innerHTML = this.getFileIconByName(data.file_name);
+            
+            // File info
+            const infoDiv = document.createElement('div');
+            infoDiv.className = 'file-info flex-1';
+            
+            const nameP = document.createElement('p');
+            nameP.className = 'font-medium text-sm text-gray-900 dark:text-white';
+            nameP.textContent = data.file_name || 'Unknown file';
+            
+            const sizeP = document.createElement('p');
+            sizeP.className = 'text-xs text-gray-500 dark:text-gray-400';
+            sizeP.textContent = data.file_size || '';
+            
+            infoDiv.appendChild(nameP);
+            infoDiv.appendChild(sizeP);
+            
+            // Download button
+            const downloadLink = document.createElement('a');
+            downloadLink.href = data.file_url;
+            downloadLink.download = data.file_name || 'download';
+            downloadLink.className = 'download-btn p-2 bg-gray-200 dark:bg-gray-500 hover:bg-gray-300 dark:hover:bg-gray-400 rounded-full transition-colors';
+            downloadLink.innerHTML = `
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                </svg>
+            `;
+            
+            fileContainer.appendChild(iconDiv);
+            fileContainer.appendChild(infoDiv);
+            fileContainer.appendChild(downloadLink);
+        }
+        
+        return fileContainer;
+    }
+    
+    getFileIconByName(fileName) {
+        if (!fileName) return this.getGenericFileIcon();
+        
+        const extension = fileName.split('.').pop().toLowerCase();
+        
+        if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(extension)) {
+            return `<svg class="w-8 h-8 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clip-rule="evenodd"></path>
+                    </svg>`;
+        } else if (extension === 'pdf') {
+            return `<svg class="w-8 h-8 text-red-500" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clip-rule="evenodd"></path>
+                    </svg>`;
+        } else if (['mp3', 'wav', 'ogg', 'aac'].includes(extension)) {
+            return `<svg class="w-8 h-8 text-purple-500" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M18 3a1 1 0 00-1.196-.98l-10 2A1 1 0 006 5v9.114A4.369 4.369 0 005 14c-1.657 0-3 .895-3 2s1.343 2 3 2 3-.895 3-2V7.82l8-1.6v5.894A4.37 4.37 0 0015 12c-1.657 0-3 .895-3 2s1.343 2 3 2 3-.895 3-2V3z"></path>
+                    </svg>`;
+        } else if (['mp4', 'avi', 'mov', 'webm'].includes(extension)) {
+            return `<svg class="w-8 h-8 text-blue-500" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M2 6a2 2 0 012-2h6l2 2h6a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z"></path>
+                        <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m7 10 5 3V7l-5 3z"></path>
+                    </svg>`;
+        } else if (['zip', 'rar', '7z'].includes(extension)) {
+            return `<svg class="w-8 h-8 text-yellow-500" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z"></path>
+                    </svg>`;
+        } else {
+            return this.getGenericFileIcon();
+        }
+    }
+    
+    getGenericFileIcon() {
+        return `<svg class="w-8 h-8 text-gray-500" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clip-rule="evenodd"></path>
+                </svg>`;
+    }
 }
 
 // Simple emoji picker
@@ -1522,6 +2011,28 @@ class EmojiPicker {
 
 // Initialize the chat app when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
-    new ChatApp();
-    new EmojiPicker();
+    console.log('🚀 DOM Content Loaded - Initializing ChatApp...');
+    
+    try {
+        const chatApp = new ChatApp();
+        console.log('✅ ChatApp initialized successfully');
+        
+        const emojiPicker = new EmojiPicker();
+        console.log('✅ EmojiPicker initialized successfully');
+        
+    } catch (error) {
+        console.error('❌ Error during initialization:', error);
+    }
+    
+    // Additional debugging - check if elements exist after DOM load
+    setTimeout(() => {
+        console.log('🔍 Post-init element check:', {
+            attachBtn: !!document.getElementById('attachBtn'),
+            fileInput: !!document.getElementById('fileInput'),
+            filePreview: !!document.getElementById('filePreview'),
+            fileName: !!document.getElementById('fileName'),
+            fileSize: !!document.getElementById('fileSize'),
+            fileIcon: !!document.getElementById('fileIcon')
+        });
+    }, 1000);
 });

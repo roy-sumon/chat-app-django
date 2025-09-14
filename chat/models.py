@@ -3,10 +3,26 @@ from django.contrib.auth.models import User
 from django.utils import timezone
 from PIL import Image
 import os
+import uuid
+from django.core.validators import FileExtensionValidator
+from django.core.exceptions import ValidationError
 
 def user_directory_path(instance, filename):
     """Upload profile pictures to MEDIA_ROOT/profiles/user_<id>/"""
     return f'profiles/user_{instance.user.id}/{filename}'
+
+def message_file_path(instance, filename):
+    """Upload message files to MEDIA_ROOT/chat_files/conversation_<id>/"""
+    # Generate unique filename to avoid conflicts
+    ext = filename.split('.')[-1] if '.' in filename else ''
+    unique_filename = f"{uuid.uuid4().hex}.{ext}" if ext else str(uuid.uuid4().hex)
+    return f'chat_files/conversation_{instance.conversation.id}/{unique_filename}'
+
+def validate_file_size(value):
+    """Validate uploaded file size (max 10MB)"""
+    filesize = value.size
+    if filesize > 10 * 1024 * 1024:  # 10MB
+        raise ValidationError('File size cannot exceed 10MB')
 
 class UserProfile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
@@ -119,9 +135,45 @@ class Message(models.Model):
         ('read', 'Read'),
     ]
     
+    MESSAGE_TYPE_CHOICES = [
+        ('text', 'Text'),
+        ('image', 'Image'),
+        ('file', 'File'),
+    ]
+    
     conversation = models.ForeignKey(Conversation, on_delete=models.CASCADE, related_name='messages')
     sender = models.ForeignKey(User, on_delete=models.CASCADE, related_name='sent_messages')
-    content = models.TextField()
+    content = models.TextField(blank=True)  # Make content optional for file messages
+    message_type = models.CharField(max_length=10, choices=MESSAGE_TYPE_CHOICES, default='text')
+    
+    # File attachment fields
+    file = models.FileField(
+        upload_to=message_file_path,
+        null=True,
+        blank=True,
+        validators=[
+            validate_file_size,
+            FileExtensionValidator(allowed_extensions=[
+                # Images
+                'jpg', 'jpeg', 'png', 'gif', 'webp', 'svg',
+                # Documents
+                'pdf', 'doc', 'docx', 'txt', 'rtf',
+                # Spreadsheets
+                'xls', 'xlsx', 'csv',
+                # Presentations
+                'ppt', 'pptx',
+                # Archives
+                'zip', 'rar', '7z',
+                # Audio
+                'mp3', 'wav', 'ogg', 'aac',
+                # Video
+                'mp4', 'avi', 'mov', 'webm'
+            ])
+        ]
+    )
+    file_name = models.CharField(max_length=255, blank=True)  # Original filename
+    file_size = models.PositiveIntegerField(null=True, blank=True)  # File size in bytes
+    
     timestamp = models.DateTimeField(auto_now_add=True)
     status = models.CharField(max_length=10, choices=MESSAGE_STATUS_CHOICES, default='sent')
     is_edited = models.BooleanField(default=False)
@@ -166,6 +218,82 @@ class Message(models.Model):
         if self.is_deleted:
             return "This message was deleted"
         return self.content
+    
+    @property
+    def is_image(self):
+        """Check if the attached file is an image"""
+        if not self.file:
+            return False
+        image_extensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg']
+        file_ext = self.file.name.split('.')[-1].lower() if '.' in self.file.name else ''
+        return file_ext in image_extensions
+    
+    @property
+    def file_extension(self):
+        """Get file extension"""
+        if not self.file:
+            return ''
+        return self.file.name.split('.')[-1].lower() if '.' in self.file.name else ''
+    
+    def get_file_icon(self):
+        """Return appropriate icon class based on file type"""
+        if not self.file:
+            return 'file-text'
+        
+        ext = self.file_extension
+        
+        # Images
+        if ext in ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg']:
+            return 'image'
+        # Documents
+        elif ext in ['pdf']:
+            return 'file-pdf'
+        elif ext in ['doc', 'docx']:
+            return 'file-word'
+        elif ext in ['xls', 'xlsx']:
+            return 'file-excel'
+        elif ext in ['ppt', 'pptx']:
+            return 'file-powerpoint'
+        # Archives
+        elif ext in ['zip', 'rar', '7z']:
+            return 'file-archive'
+        # Audio
+        elif ext in ['mp3', 'wav', 'ogg', 'aac']:
+            return 'music'
+        # Video
+        elif ext in ['mp4', 'avi', 'mov', 'webm']:
+            return 'video'
+        else:
+            return 'file-text'
+    
+    def format_file_size(self):
+        """Format file size in human readable format"""
+        if not self.file_size:
+            return ''
+        
+        size = self.file_size
+        for unit in ['B', 'KB', 'MB', 'GB']:
+            if size < 1024.0:
+                return f"{size:.1f} {unit}"
+            size /= 1024.0
+        return f"{size:.1f} TB"
+    
+    def save(self, *args, **kwargs):
+        """Override save to set file metadata"""
+        if self.file:
+            # Set message type based on file
+            if self.is_image:
+                self.message_type = 'image'
+            else:
+                self.message_type = 'file'
+            
+            # Set file metadata if not already set
+            if not self.file_name:
+                self.file_name = os.path.basename(self.file.name)
+            if not self.file_size:
+                self.file_size = self.file.size
+        
+        super().save(*args, **kwargs)
 
 class TypingStatus(models.Model):
     conversation = models.ForeignKey(Conversation, on_delete=models.CASCADE)
