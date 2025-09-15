@@ -216,13 +216,17 @@
                     </div>
                 </div>
                 <div class="flex items-center space-x-2">
-                    <button class="p-2 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-full transition-colors">
-                        <svg class="w-5 h-5 text-gray-600 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <!-- Audio Call Button -->
+                    <button id="audioCallBtn" class="p-2 hover:bg-green-100 dark:hover:bg-green-800 rounded-full transition-colors group" 
+                            title="Audio Call" data-user-id="{{ selected_other_user.id }}">
+                        <svg class="w-5 h-5 text-gray-600 dark:text-gray-300 group-hover:text-green-600 dark:group-hover:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"></path>
                         </svg>
                     </button>
-                    <button class="p-2 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-full transition-colors">
-                        <svg class="w-5 h-5 text-gray-600 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <!-- Video Call Button -->
+                    <button id="videoCallBtn" class="p-2 hover:bg-blue-100 dark:hover:bg-blue-800 rounded-full transition-colors group" 
+                            title="Video Call" data-user-id="{{ selected_other_user.id }}">
+                        <svg class="w-5 h-5 text-gray-600 dark:text-gray-300 group-hover:text-blue-600 dark:group-hover:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
                         </svg>
                     </button>
@@ -570,9 +574,15 @@
 
 {% block scripts %}
 <script>
-    const conversationId = {% if selected_conversation %}{{ selected_conversation.id }}{% else %}null{% endif %};
-    const currentUserId = {{ request.user.id }};
-    const currentUsername = '{{ request.user.username }}';
+    // Make these globally available
+    window.conversationId = {% if selected_conversation %}{{ selected_conversation.id }}{% else %}null{% endif %};
+    window.currentUserId = {{ request.user.id }};
+    window.currentUsername = '{{ request.user.username }}';
+    
+    // Also set them as const for backward compatibility
+    const conversationId = window.conversationId;
+    const currentUserId = window.currentUserId;
+    const currentUsername = window.currentUsername;
 </script>
 <script>
 // Account options menu functionality
@@ -721,5 +731,205 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 </script>
+
+<!-- WebRTC Client for Audio/Video Calls -->
+<script src="{% static 'js/webrtc_client.js' %}"></script>
 <script src="{% static 'js/chat.js' %}"></script>
+
+<script>
+// Initialize WebRTC client when chat app is ready
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('🔧 WebRTC initialization started');
+    
+    // Check if WebRTC client class is available
+    if (typeof WebRTCClient === 'undefined') {
+        console.error('❌ WebRTCClient class not found! Check if webrtc_client.js is loaded.');
+        return;
+    }
+    
+    function initializeWebRTC() {
+        console.log('🔍 Checking for chat app...', {
+            chatApp: !!window.chatApp,
+            conversationId: typeof conversationId !== 'undefined' ? conversationId : 'not defined',
+            currentUserId: typeof currentUserId !== 'undefined' ? currentUserId : 'not defined'
+        });
+        
+        // Test user WebSocket connection
+        console.log('🔍 Testing direct user WebSocket connection...');
+        const testUserSocket = new WebSocket(`ws://${window.location.host}/ws/user/`);
+        testUserSocket.onopen = () => console.log('✅ Direct user WebSocket test: Connected');
+        testUserSocket.onclose = (e) => console.log('🔌 Direct user WebSocket test: Closed', e.code);
+        testUserSocket.onerror = (e) => console.error('❌ Direct user WebSocket test: Error', e);
+        
+        if (window.chatApp) {
+            try {
+                // Initialize WebRTC client
+                window.webrtcClient = new WebRTCClient(window.chatApp);
+                console.log('✅ WebRTC client initialized successfully');
+                
+                // Add call button event listeners
+                const audioCallBtn = document.getElementById('audioCallBtn');
+                const videoCallBtn = document.getElementById('videoCallBtn');
+                
+                console.log('🔍 Call buttons found:', {
+                    audioCallBtn: !!audioCallBtn,
+                    videoCallBtn: !!videoCallBtn
+                });
+                
+                if (audioCallBtn) {
+                    const userId = audioCallBtn.dataset.userId;
+                    console.log('📞 Audio call button - User ID:', userId);
+                    
+                    audioCallBtn.addEventListener('click', function() {
+                        const userId = this.dataset.userId;
+                        console.log('📞 Audio call initiated to user:', userId);
+                        
+                        if (userId && window.webrtcClient) {
+                            window.webrtcClient.initiateCall(userId, 'audio');
+                        } else {
+                            console.error('❌ Missing requirements:', {
+                                userId: userId,
+                                webrtcClient: !!window.webrtcClient
+                            });
+                        }
+                    });
+                } else {
+                    console.warn('⚠️ Audio call button not found');
+                }
+                
+                if (videoCallBtn) {
+                    const userId = videoCallBtn.dataset.userId;
+                    console.log('📹 Video call button - User ID:', userId);
+                    
+                    videoCallBtn.addEventListener('click', function() {
+                        const userId = this.dataset.userId;
+                        console.log('📹 Video call initiated to user:', userId);
+                        
+                        if (userId && window.webrtcClient) {
+                            window.webrtcClient.initiateCall(userId, 'video');
+                        } else {
+                            console.error('❌ Missing requirements:', {
+                                userId: userId,
+                                webrtcClient: !!window.webrtcClient
+                            });
+                        }
+                    });
+                } else {
+                    console.warn('⚠️ Video call button not found');
+                }
+                
+            } catch (error) {
+                console.error('❌ Error initializing WebRTC client:', error);
+            }
+        } else {
+            console.warn('⚠️ Chat app not found, will retry...');
+            return false;
+        }
+        return true;
+    }
+    
+    // Try to initialize immediately
+    if (!initializeWebRTC()) {
+        // If failed, retry after delays
+        setTimeout(() => {
+            if (!initializeWebRTC()) {
+                setTimeout(() => {
+                    initializeWebRTC();
+                }, 2000);
+            }
+        }, 1000);
+    }
+});
+</script>
+
+<!-- Incoming Call Modal -->
+<div id="incomingCallModal" class="hidden fixed inset-0 bg-black bg-opacity-75 z-50 flex items-center justify-center">
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-sm mx-4 p-6 text-center">
+        <div class="mb-4">
+            <div class="w-20 h-20 mx-auto mb-4 rounded-full overflow-hidden">
+                <img id="callerAvatar" src="" alt="Caller" class="w-full h-full object-cover">
+            </div>
+            <h3 id="callerName" class="text-xl font-semibold text-gray-900 dark:text-white mb-2"></h3>
+            <p id="callType" class="text-gray-600 dark:text-gray-300 mb-4"></p>
+        </div>
+        <div class="flex justify-center space-x-4">
+            <!-- Reject Call -->
+            <button id="rejectCallBtn" class="bg-red-500 hover:bg-red-600 text-white p-4 rounded-full transition-colors">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 8l2-2m0 0l2-2m-2 2l-2-2m2 2v6a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h6"></path>
+                </svg>
+            </button>
+            <!-- Accept Call -->
+            <button id="acceptCallBtn" class="bg-green-500 hover:bg-green-600 text-white p-4 rounded-full transition-colors">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"></path>
+                </svg>
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Outgoing Call Modal -->
+<div id="outgoingCallModal" class="hidden fixed inset-0 bg-black bg-opacity-75 z-50 flex items-center justify-center">
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-sm mx-4 p-6 text-center">
+        <div class="mb-4">
+            <div class="w-20 h-20 mx-auto mb-4 rounded-full overflow-hidden">
+                <img id="calleeAvatar" src="" alt="Calling" class="w-full h-full object-cover">
+            </div>
+            <h3 id="calleeName" class="text-xl font-semibold text-gray-900 dark:text-white mb-2"></h3>
+            <p id="outgoingCallType" class="text-gray-600 dark:text-gray-300 mb-4">Calling...</p>
+        </div>
+        <div class="flex justify-center">
+            <!-- End Call -->
+            <button id="endOutgoingCallBtn" class="bg-red-500 hover:bg-red-600 text-white p-4 rounded-full transition-colors">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 8l2-2m0 0l2-2m-2 2l-2-2m2 2v6a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h6"></path>
+                </svg>
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Active Call Interface -->
+<div id="activeCallModal" class="hidden fixed inset-0 bg-black bg-opacity-90 z-50">
+    <div class="h-full flex flex-col">
+        <!-- Video Container -->
+        <div class="flex-1 relative">
+            <!-- Remote Video -->
+            <video id="remoteVideo" autoplay playsinline class="w-full h-full object-cover bg-black"></video>
+            <!-- Local Video (Picture-in-Picture) -->
+            <video id="localVideo" autoplay muted playsinline class="absolute top-4 right-4 w-32 h-24 bg-gray-800 rounded-lg border-2 border-white"></video>
+            <!-- Call Status -->
+            <div class="absolute top-4 left-4 bg-black bg-opacity-50 text-white px-3 py-1 rounded-lg">
+                <span id="callStatus">Connected</span>
+                <span id="callDuration" class="ml-2">00:00</span>
+            </div>
+        </div>
+        
+        <!-- Call Controls -->
+        <div class="bg-black bg-opacity-75 p-6">
+            <div class="flex justify-center space-x-6">
+                <!-- Mute Button -->
+                <button id="muteBtn" class="bg-gray-600 hover:bg-gray-700 text-white p-4 rounded-full transition-colors" title="Mute">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path>
+                    </svg>
+                </button>
+                <!-- Video Button -->
+                <button id="videoBtn" class="bg-gray-600 hover:bg-gray-700 text-white p-4 rounded-full transition-colors" title="Toggle Video">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+                    </svg>
+                </button>
+                <!-- End Call Button -->
+                <button id="endCallBtn" class="bg-red-500 hover:bg-red-600 text-white p-4 rounded-full transition-colors" title="End Call">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 8l2-2m0 0l2-2m-2 2l-2-2m2 2v6a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h6"></path>
+                    </svg>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 {% endblock %}

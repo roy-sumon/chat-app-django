@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebSocket Debug</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-3xl font-bold mb-6">WebSocket Call Debug</h1>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- User Info -->
+            <div class="bg-white p-6 rounded-lg shadow">
+                <h2 class="text-xl font-semibold mb-4">Current User</h2>
+                <p><strong>User:</strong> {{ user.username }}</p>
+                <p><strong>ID:</strong> {{ user.id }}</p>
+                <p><strong>Authenticated:</strong> {{ user.is_authenticated }}</p>
+            </div>
+            
+            <!-- Test Buttons -->
+            <div class="bg-white p-6 rounded-lg shadow">
+                <h2 class="text-xl font-semibold mb-4">Test Actions</h2>
+                <div class="space-y-3">
+                    <button id="testUserSocket" class="w-full bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded">
+                        Test User WebSocket
+                    </button>
+                    <button id="testCallMessage" class="w-full bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded">
+                        Send Test Call Message
+                    </button>
+                    <button id="clearLog" class="w-full bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded">
+                        Clear Log
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Debug Log -->
+        <div class="bg-gray-900 text-green-400 p-4 rounded-lg mt-6 font-mono text-sm" style="height: 400px; overflow-y: auto;">
+            <h3 class="text-white mb-2">Debug Log:</h3>
+            <div id="debugOutput"></div>
+        </div>
+    </div>
+    
+    <script>
+        // Debug logging
+        const debugOutput = document.getElementById('debugOutput');
+        function debugLog(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const color = type === 'error' ? 'text-red-400' : type === 'success' ? 'text-green-400' : 'text-white';
+            debugOutput.innerHTML += `<div class="${color}">[${timestamp}] ${message}</div>`;
+            debugOutput.scrollTop = debugOutput.scrollHeight;
+        }
+        
+        // Override console methods
+        const originalLog = console.log;
+        console.log = function(...args) {
+            originalLog.apply(console, args);
+            debugLog(args.join(' '), 'info');
+        };
+        
+        const originalError = console.error;
+        console.error = function(...args) {
+            originalError.apply(console, args);
+            debugLog('ERROR: ' + args.join(' '), 'error');
+        };
+        
+        let userSocket = null;
+        let chatSocket = null;
+        
+        // Test user WebSocket connection
+        document.getElementById('testUserSocket').addEventListener('click', () => {
+            debugLog('🔌 Testing User WebSocket Connection...');
+            
+            if (userSocket && userSocket.readyState === WebSocket.OPEN) {
+                userSocket.close();
+            }
+            
+            userSocket = new WebSocket(`ws://${window.location.host}/ws/user/`);
+            
+            userSocket.onopen = (e) => {
+                debugLog('✅ User WebSocket CONNECTED', 'success');
+            };
+            
+            userSocket.onmessage = (e) => {
+                debugLog('📨 User WebSocket MESSAGE: ' + e.data, 'success');
+                try {
+                    const data = JSON.parse(e.data);
+                    debugLog('📋 Parsed: ' + JSON.stringify(data, null, 2), 'success');
+                } catch (err) {
+                    debugLog('❌ Parse error: ' + err.message, 'error');
+                }
+            };
+            
+            userSocket.onclose = (e) => {
+                debugLog('🔌 User WebSocket CLOSED: ' + e.code + ' - ' + e.reason);
+            };
+            
+            userSocket.onerror = (e) => {
+                debugLog('❌ User WebSocket ERROR', 'error');
+            };
+        });
+        
+        // Test call message
+        document.getElementById('testCallMessage').addEventListener('click', () => {
+            debugLog('📞 Testing Call Message...');
+            
+            // First connect to chat socket to send call initiation
+            if (chatSocket && chatSocket.readyState === WebSocket.OPEN) {
+                chatSocket.close();
+            }
+            
+            chatSocket = new WebSocket(`ws://${window.location.host}/ws/chat/12/`);
+            
+            chatSocket.onopen = (e) => {
+                debugLog('✅ Chat WebSocket CONNECTED', 'success');
+                
+                // Send test call message
+                const callMessage = {
+                    type: 'call_initiate',
+                    call_type: 'audio',
+                    callee_id: {{ user.id == 12 and 13 or 12 }}  // Send to other user
+                };
+                
+                debugLog('📤 Sending: ' + JSON.stringify(callMessage));
+                chatSocket.send(JSON.stringify(callMessage));
+            };
+            
+            chatSocket.onmessage = (e) => {
+                debugLog('📨 Chat WebSocket MESSAGE: ' + e.data, 'success');
+            };
+            
+            chatSocket.onclose = (e) => {
+                debugLog('🔌 Chat WebSocket CLOSED: ' + e.code);
+            };
+            
+            chatSocket.onerror = (e) => {
+                debugLog('❌ Chat WebSocket ERROR', 'error');
+            };
+        });
+        
+        // Clear log
+        document.getElementById('clearLog').addEventListener('click', () => {
+            debugOutput.innerHTML = '';
+        });
+        
+        // Initialize
+        debugLog('🚀 WebSocket Debug Tool Loaded');
+        debugLog('👤 Current User: {{ user.username }} (ID: {{ user.id }})');
+        
+        // Auto-connect user socket
+        setTimeout(() => {
+            document.getElementById('testUserSocket').click();
+        }, 1000);
+    </script>
+</body>
+</html>

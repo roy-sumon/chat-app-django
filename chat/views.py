@@ -14,7 +14,7 @@ import os
 from django.core.files.storage import default_storage
 
 @login_required
-def chat_home(request):
+def chat_home(request, template_name='chat/chat_home.html'):
     """Main chat interface showing conversations and messages"""
     # Check for login success message in session
     from django.contrib import messages
@@ -82,7 +82,7 @@ def chat_home(request):
         'messages': messages,
         'users': users,
     }
-    return render(request, 'chat/chat_home.html', context)
+    return render(request, template_name, context)
 
 @login_required
 @require_http_methods(["POST"])

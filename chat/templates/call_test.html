@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Call Test</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="max-w-2xl mx-auto">
+        <h1 class="text-3xl font-bold mb-6">WebRTC Call Test</h1>
+        
+        {% if user.is_authenticated %}
+            <div class="bg-white p-6 rounded-lg shadow mb-6">
+                <h2 class="text-xl font-semibold mb-4">User Info</h2>
+                <p><strong>User:</strong> {{ user.username }} (ID: {{ user.id }})</p>
+                <p><strong>Authenticated:</strong> Yes</p>
+            </div>
+            
+            {% if selected_conversation %}
+            <div class="bg-white p-6 rounded-lg shadow mb-6">
+                <h2 class="text-xl font-semibold mb-4">Conversation Info</h2>
+                <p><strong>Conversation ID:</strong> {{ selected_conversation.id }}</p>
+                <p><strong>Other User:</strong> {{ selected_other_user.username }} (ID: {{ selected_other_user.id }})</p>
+            </div>
+            
+            <div class="bg-white p-6 rounded-lg shadow mb-6">
+                <h2 class="text-xl font-semibold mb-4">Call Test Buttons</h2>
+                <div class="space-x-4">
+                    <button id="testAudioCall" class="bg-green-500 hover:bg-green-600 text-white px-6 py-3 rounded-lg">
+                        Test Audio Call
+                    </button>
+                    <button id="testVideoCall" class="bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-lg">
+                        Test Video Call
+                    </button>
+                </div>
+            </div>
+            {% else %}
+            <div class="bg-yellow-100 p-6 rounded-lg shadow mb-6">
+                <p>No conversation selected. Go to: <a href="/?conversation=12" class="text-blue-600 underline">/?conversation=12</a></p>
+            </div>
+            {% endif %}
+            
+        {% else %}
+            <div class="bg-red-100 p-6 rounded-lg shadow mb-6">
+                <p>Not authenticated. Please <a href="/auth/login/" class="text-blue-600 underline">login</a> first.</p>
+            </div>
+        {% endif %}
+        
+        <div class="bg-gray-800 text-green-400 p-4 rounded-lg font-mono text-sm" style="height: 400px; overflow-y: auto;">
+            <h3 class="text-white mb-2">Debug Console:</h3>
+            <div id="debugOutput"></div>
+        </div>
+    </div>
+    
+    <script>
+        // Debug console
+        const debugOutput = document.getElementById('debugOutput');
+        function debugLog(message) {
+            const timestamp = new Date().toLocaleTimeString();
+            debugOutput.innerHTML += `<div>[${timestamp}] ${message}</div>`;
+            debugOutput.scrollTop = debugOutput.scrollHeight;
+        }
+        
+        // Override console.log to capture logs
+        const originalLog = console.log;
+        console.log = function(...args) {
+            originalLog.apply(console, args);
+            debugLog(args.join(' '));
+        };
+        
+        const originalError = console.error;
+        console.error = function(...args) {
+            originalError.apply(console, args);
+            debugLog(`<span class="text-red-400">ERROR: ${args.join(' ')}</span>`);
+        };
+        
+        const originalWarn = console.warn;
+        console.warn = function(...args) {
+            originalWarn.apply(console, args);
+            debugLog(`<span class="text-yellow-400">WARN: ${args.join(' ')}</span>`);
+        };
+        
+        // Set global variables
+        window.conversationId = {% if selected_conversation %}{{ selected_conversation.id }}{% else %}null{% endif %};
+        window.currentUserId = {{ request.user.id }};
+        window.currentUsername = '{{ request.user.username }}';
+        
+        debugLog('Page loaded. Variables set:');
+        debugLog(`conversationId: ${window.conversationId}`);
+        debugLog(`currentUserId: ${window.currentUserId}`);
+        debugLog(`currentUsername: ${window.currentUsername}`);
+    </script>
+    
+    <!-- Load WebRTC client -->
+    <script src="{% load static %}{% static 'js/webrtc_client.js' %}"></script>
+    
+    <script>
+        // Simple chat app mock for testing
+        class MockChatApp {
+            constructor() {
+                this.conversationId = window.conversationId;
+                this.currentUserId = window.currentUserId;
+                this.currentUsername = window.currentUsername;
+                this.chatSocket = {
+                    readyState: 1, // WebSocket.OPEN
+                    send: (data) => {
+                        debugLog(`Mock WebSocket send: ${data}`);
+                        // Parse and simulate response for testing
+                        try {
+                            const parsed = JSON.parse(data);
+                            debugLog(`Parsed message: ${JSON.stringify(parsed, null, 2)}`);
+                        } catch (e) {
+                            debugLog(`Could not parse: ${data}`);
+                        }
+                    }
+                };
+            }
+            
+            handleWebSocketMessage(data) {
+                debugLog(`Mock handleWebSocketMessage: ${JSON.stringify(data)}`);
+            }
+        }
+        
+        // Initialize mock chat app
+        window.chatApp = new MockChatApp();
+        debugLog('Mock chat app initialized');
+        
+        // Initialize WebRTC client
+        if (typeof WebRTCClient !== 'undefined') {
+            try {
+                window.webrtcClient = new WebRTCClient(window.chatApp);
+                debugLog('WebRTC client initialized successfully');
+                
+                // Add test button listeners
+                const testAudioBtn = document.getElementById('testAudioCall');
+                const testVideoBtn = document.getElementById('testVideoCall');
+                
+                if (testAudioBtn) {
+                    testAudioBtn.addEventListener('click', () => {
+                        debugLog('Test audio call clicked');
+                        {% if selected_other_user %}
+                        window.webrtcClient.initiateCall({{ selected_other_user.id }}, 'audio');
+                        {% else %}
+                        debugLog('No other user available for call test');
+                        {% endif %}
+                    });
+                }
+                
+                if (testVideoBtn) {
+                    testVideoBtn.addEventListener('click', () => {
+                        debugLog('Test video call clicked');
+                        {% if selected_other_user %}
+                        window.webrtcClient.initiateCall({{ selected_other_user.id }}, 'video');
+                        {% else %}
+                        debugLog('No other user available for call test');
+                        {% endif %}
+                    });
+                }
+                
+            } catch (error) {
+                debugLog(`Error initializing WebRTC client: ${error.message}`);
+            }
+        } else {
+            debugLog('WebRTCClient class not found');
+        }
+    </script>
+</body>
+</html>

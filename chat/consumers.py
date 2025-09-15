@@ -2,10 +2,11 @@ import json
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
 from django.contrib.auth.models import User
-from .models import Conversation, Message, UserProfile, TypingStatus
+from .models import Conversation, Message, UserProfile, TypingStatus, Call
 from django.utils import timezone
 import asyncio
 from typing import Dict, Set
+import uuid
 
 class ChatConsumer(AsyncWebsocketConsumer):
     async def connect(self):
@@ -25,6 +26,12 @@ class ChatConsumer(AsyncWebsocketConsumer):
         # Join room group
         await self.channel_layer.group_add(
             self.room_group_name,
+            self.channel_name
+        )
+        
+        # Join user's personal group for call notifications
+        await self.channel_layer.group_add(
+            f'user_{self.user.id}',
             self.channel_name
         )
         
@@ -67,6 +74,13 @@ class ChatConsumer(AsyncWebsocketConsumer):
         if hasattr(self, 'room_group_name'):
             await self.channel_layer.group_discard(
                 self.room_group_name,
+                self.channel_name
+            )
+        
+        # Leave user's personal group
+        if hasattr(self, 'user') and not self.user.is_anonymous:
+            await self.channel_layer.group_discard(
+                f'user_{self.user.id}',
                 self.channel_name
             )
 
@@ -226,6 +240,137 @@ class ChatConsumer(AsyncWebsocketConsumer):
                         'activity': activity
                     }
                 )
+            
+            # Call signaling message types
+            elif message_type == 'call_initiate':
+                call_type = text_data_json.get('call_type', 'audio')  # 'audio' or 'video'
+                callee_id = text_data_json.get('callee_id')
+                
+                print(f"📞 Call initiation: {self.user.username} -> User {callee_id}, Type: {call_type}")
+                
+                if callee_id:
+                    call = await self.initiate_call(callee_id, call_type)
+                    print(f"📞 Call created: {call}")
+                    
+                    if call:
+                        group_name = f'user_{callee_id}'
+                        print(f"📞 Sending call notification to group: {group_name}")
+                        
+                        # Send call initiation to the callee
+                        await self.channel_layer.group_send(
+                            group_name,
+                            {
+                                'type': 'incoming_call',
+                                'call_id': str(call['call_id']),
+                                'caller_id': self.user.id,
+                                'caller_name': self.user.username,
+                                'call_type': call_type,
+                                'conversation_id': self.conversation_id
+                            }
+                        )
+                        print(f"📞 Call notification sent to {group_name}")
+                    else:
+                        print(f"📞 Failed to create call - call is None")
+                else:
+                    print(f"📞 No callee_id provided")
+            
+            elif message_type == 'call_accept':
+                call_id = text_data_json.get('call_id')
+                if call_id:
+                    success = await self.accept_call(call_id)
+                    if success:
+                        call_data = await self.get_call_data(call_id)
+                        # Notify caller that call was accepted
+                        await self.channel_layer.group_send(
+                            f'user_{call_data["caller_id"]}',
+                            {
+                                'type': 'call_accepted',
+                                'call_id': call_id,
+                                'accepter_id': self.user.id
+                            }
+                        )
+            
+            elif message_type == 'call_reject':
+                call_id = text_data_json.get('call_id')
+                if call_id:
+                    success = await self.reject_call(call_id)
+                    if success:
+                        call_data = await self.get_call_data(call_id)
+                        # Notify caller that call was rejected
+                        await self.channel_layer.group_send(
+                            f'user_{call_data["caller_id"]}',
+                            {
+                                'type': 'call_rejected',
+                                'call_id': call_id,
+                                'rejecter_id': self.user.id
+                            }
+                        )
+            
+            elif message_type == 'call_end':
+                call_id = text_data_json.get('call_id')
+                if call_id:
+                    success = await self.end_call(call_id)
+                    if success:
+                        call_data = await self.get_call_data(call_id)
+                        other_user_id = call_data['caller_id'] if call_data['caller_id'] != self.user.id else call_data['callee_id']
+                        # Notify other participant that call ended
+                        await self.channel_layer.group_send(
+                            f'user_{other_user_id}',
+                            {
+                                'type': 'call_ended',
+                                'call_id': call_id,
+                                'ended_by': self.user.id
+                            }
+                        )
+            
+            # WebRTC signaling
+            elif message_type == 'webrtc_offer':
+                call_id = text_data_json.get('call_id')
+                offer = text_data_json.get('offer')
+                if call_id and offer:
+                    call_data = await self.get_call_data(call_id)
+                    other_user_id = call_data['callee_id']
+                    await self.channel_layer.group_send(
+                        f'user_{other_user_id}',
+                        {
+                            'type': 'webrtc_offer_received',
+                            'call_id': call_id,
+                            'offer': offer,
+                            'from_user_id': self.user.id
+                        }
+                    )
+            
+            elif message_type == 'webrtc_answer':
+                call_id = text_data_json.get('call_id')
+                answer = text_data_json.get('answer')
+                if call_id and answer:
+                    call_data = await self.get_call_data(call_id)
+                    other_user_id = call_data['caller_id']
+                    await self.channel_layer.group_send(
+                        f'user_{other_user_id}',
+                        {
+                            'type': 'webrtc_answer_received',
+                            'call_id': call_id,
+                            'answer': answer,
+                            'from_user_id': self.user.id
+                        }
+                    )
+            
+            elif message_type == 'webrtc_ice_candidate':
+                call_id = text_data_json.get('call_id')
+                candidate = text_data_json.get('candidate')
+                if call_id and candidate:
+                    call_data = await self.get_call_data(call_id)
+                    other_user_id = call_data['caller_id'] if call_data['caller_id'] != self.user.id else call_data['callee_id']
+                    await self.channel_layer.group_send(
+                        f'user_{other_user_id}',
+                        {
+                            'type': 'webrtc_ice_candidate_received',
+                            'call_id': call_id,
+                            'candidate': candidate,
+                            'from_user_id': self.user.id
+                        }
+                    )
                 
         except Exception as e:
             print(f"Error in receive: {e}")
@@ -332,6 +477,79 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 'username': event['username'],
                 'activity': event['activity']
             }))
+    
+    # Call event handlers
+    async def incoming_call(self, event):
+        """Handle incoming call notification"""
+        print(f"📨 Incoming call handler triggered for user {self.user.username}")
+        print(f"📨 Event data: {event}")
+        
+        call_data = {
+            'type': 'incoming_call',
+            'call_id': event['call_id'],
+            'caller_id': event['caller_id'],
+            'caller_name': event['caller_name'],
+            'call_type': event['call_type'],
+            'conversation_id': event.get('conversation_id')
+        }
+        
+        print(f"📨 Sending call data to WebSocket: {call_data}")
+        
+        await self.send(text_data=json.dumps(call_data))
+        
+        print(f"📨 Call notification sent to WebSocket for user {self.user.username}")
+    
+    async def call_accepted(self, event):
+        # Send call accepted notification to WebSocket
+        await self.send(text_data=json.dumps({
+            'type': 'call_accepted',
+            'call_id': event['call_id'],
+            'accepter_id': event['accepter_id']
+        }))
+    
+    async def call_rejected(self, event):
+        # Send call rejected notification to WebSocket
+        await self.send(text_data=json.dumps({
+            'type': 'call_rejected',
+            'call_id': event['call_id'],
+            'rejecter_id': event['rejecter_id']
+        }))
+    
+    async def call_ended(self, event):
+        # Send call ended notification to WebSocket
+        await self.send(text_data=json.dumps({
+            'type': 'call_ended',
+            'call_id': event['call_id'],
+            'ended_by': event['ended_by']
+        }))
+    
+    # WebRTC signaling handlers
+    async def webrtc_offer_received(self, event):
+        # Send WebRTC offer to WebSocket
+        await self.send(text_data=json.dumps({
+            'type': 'webrtc_offer',
+            'call_id': event['call_id'],
+            'offer': event['offer'],
+            'from_user_id': event['from_user_id']
+        }))
+    
+    async def webrtc_answer_received(self, event):
+        # Send WebRTC answer to WebSocket
+        await self.send(text_data=json.dumps({
+            'type': 'webrtc_answer',
+            'call_id': event['call_id'],
+            'answer': event['answer'],
+            'from_user_id': event['from_user_id']
+        }))
+    
+    async def webrtc_ice_candidate_received(self, event):
+        # Send WebRTC ICE candidate to WebSocket
+        await self.send(text_data=json.dumps({
+            'type': 'webrtc_ice_candidate',
+            'call_id': event['call_id'],
+            'candidate': event['candidate'],
+            'from_user_id': event['from_user_id']
+        }))
 
     @database_sync_to_async
     def save_message(self, content):
@@ -485,3 +703,171 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 user=self.user,
                 last_seen=timezone.now()
             )
+    
+    # Call management database methods
+    @database_sync_to_async
+    def initiate_call(self, callee_id, call_type):
+        try:
+            conversation = Conversation.objects.get(id=self.conversation_id)
+            callee = User.objects.get(id=callee_id)
+            
+            # Check if there's already an active call
+            active_call = Call.objects.filter(
+                conversation=conversation,
+                status__in=['initiated', 'ringing', 'accepted']
+            ).first()
+            
+            if active_call:
+                return None  # Call already in progress
+            
+            call = Call.objects.create(
+                conversation=conversation,
+                caller=self.user,
+                callee=callee,
+                call_type=call_type,
+                status='initiated'
+            )
+            
+            return {
+                'call_id': call.call_id,
+                'caller_id': self.user.id,
+                'callee_id': callee_id,
+                'call_type': call_type
+            }
+        except (Conversation.DoesNotExist, User.DoesNotExist):
+            return None
+    
+    @database_sync_to_async
+    def accept_call(self, call_id):
+        try:
+            call = Call.objects.get(call_id=call_id, callee=self.user)
+            call.accept_call()
+            return True
+        except Call.DoesNotExist:
+            return False
+    
+    @database_sync_to_async
+    def reject_call(self, call_id):
+        try:
+            call = Call.objects.get(call_id=call_id, callee=self.user)
+            call.reject_call()
+            return True
+        except Call.DoesNotExist:
+            return False
+    
+    @database_sync_to_async
+    def end_call(self, call_id):
+        try:
+            call = Call.objects.get(call_id=call_id)
+            # Check if user is participant in this call
+            if call.caller == self.user or call.callee == self.user:
+                call.end_call()
+                return True
+            return False
+        except Call.DoesNotExist:
+            return False
+    
+    @database_sync_to_async
+    def get_call_data(self, call_id):
+        try:
+            call = Call.objects.get(call_id=call_id)
+            return {
+                'call_id': str(call.call_id),
+                'caller_id': call.caller.id,
+                'callee_id': call.callee.id,
+                'call_type': call.call_type,
+                'status': call.status,
+                'conversation_id': call.conversation.id
+            }
+        except Call.DoesNotExist:
+            return None
+
+
+class UserConsumer(AsyncWebsocketConsumer):
+    """Consumer for user-specific notifications like incoming calls"""
+    
+    async def connect(self):
+        self.user = self.scope['user']
+        
+        if self.user.is_anonymous:
+            await self.close(code=4001)
+            return
+        
+        # Join user's personal group
+        self.user_group_name = f'user_{self.user.id}'
+        await self.channel_layer.group_add(
+            self.user_group_name,
+            self.channel_name
+        )
+        
+        await self.accept()
+        print(f"User {self.user.username} connected to personal channel")
+    
+    async def disconnect(self, close_code):
+        if hasattr(self, 'user_group_name'):
+            await self.channel_layer.group_discard(
+                self.user_group_name,
+                self.channel_name
+            )
+        print(f"User {self.user.username if hasattr(self, 'user') else 'unknown'} disconnected from personal channel")
+    
+    async def receive(self, text_data):
+        # Handle any user-specific messages if needed
+        pass
+    
+    # Call event handlers - these are the same as in ChatConsumer
+    async def incoming_call(self, event):
+        await self.send(text_data=json.dumps({
+            'type': 'incoming_call',
+            'call_id': event['call_id'],
+            'caller_id': event['caller_id'],
+            'caller_name': event['caller_name'],
+            'call_type': event['call_type'],
+            'conversation_id': event['conversation_id']
+        }))
+    
+    async def call_accepted(self, event):
+        await self.send(text_data=json.dumps({
+            'type': 'call_accepted',
+            'call_id': event['call_id'],
+            'accepter_id': event['accepter_id']
+        }))
+    
+    async def call_rejected(self, event):
+        await self.send(text_data=json.dumps({
+            'type': 'call_rejected',
+            'call_id': event['call_id'],
+            'rejecter_id': event['rejecter_id']
+        }))
+    
+    async def call_ended(self, event):
+        await self.send(text_data=json.dumps({
+            'type': 'call_ended',
+            'call_id': event['call_id'],
+            'ended_by': event['ended_by']
+        }))
+    
+    # WebRTC signaling handlers
+    async def webrtc_offer_received(self, event):
+        await self.send(text_data=json.dumps({
+            'type': 'webrtc_offer',
+            'call_id': event['call_id'],
+            'offer': event['offer'],
+            'from_user_id': event['from_user_id']
+        }))
+    
+    async def webrtc_answer_received(self, event):
+        await self.send(text_data=json.dumps({
+            'type': 'webrtc_answer',
+            'call_id': event['call_id'],
+            'answer': event['answer'],
+            'from_user_id': event['from_user_id']
+        }))
+    
+    async def webrtc_ice_candidate_received(self, event):
+        await self.send(text_data=json.dumps({
+            'type': 'webrtc_ice_candidate',
+            'call_id': event['call_id'],
+            'candidate': event['candidate'],
+            'from_user_id': event['from_user_id']
+        }))

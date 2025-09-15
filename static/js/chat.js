@@ -2014,7 +2014,8 @@ document.addEventListener('DOMContentLoaded', () => {
     console.log('🚀 DOM Content Loaded - Initializing ChatApp...');
     
     try {
-        const chatApp = new ChatApp();
+        // Make chatApp globally accessible for WebRTC client
+        window.chatApp = new ChatApp();
         console.log('✅ ChatApp initialized successfully');
         
         const emojiPicker = new EmojiPicker();

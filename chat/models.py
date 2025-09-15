@@ -344,3 +344,91 @@ class ConversationDeletion(models.Model):
     
     def __str__(self):
         return f"Conversation {self.conversation.id} deleted by {self.deleted_by.username}"
+
+class Call(models.Model):
+    CALL_TYPE_CHOICES = [
+        ('audio', 'Audio Call'),
+        ('video', 'Video Call'),
+    ]
+    
+    CALL_STATUS_CHOICES = [
+        ('initiated', 'Initiated'),
+        ('ringing', 'Ringing'),
+        ('accepted', 'Accepted'),
+        ('rejected', 'Rejected'),
+        ('missed', 'Missed'),
+        ('ended', 'Ended'),
+        ('failed', 'Failed'),
+    ]
+    
+    call_id = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
+    conversation = models.ForeignKey(Conversation, on_delete=models.CASCADE, related_name='calls')
+    caller = models.ForeignKey(User, on_delete=models.CASCADE, related_name='outgoing_calls')
+    callee = models.ForeignKey(User, on_delete=models.CASCADE, related_name='incoming_calls')
+    call_type = models.CharField(max_length=10, choices=CALL_TYPE_CHOICES)
+    status = models.CharField(max_length=10, choices=CALL_STATUS_CHOICES, default='initiated')
+    
+    # Timestamps
+    initiated_at = models.DateTimeField(auto_now_add=True)
+    accepted_at = models.DateTimeField(null=True, blank=True)
+    ended_at = models.DateTimeField(null=True, blank=True)
+    
+    # Call duration (in seconds)
+    duration = models.PositiveIntegerField(null=True, blank=True)
+    
+    # WebRTC session data
+    session_data = models.JSONField(default=dict, blank=True)
+    
+    class Meta:
+        ordering = ['-initiated_at']
+    
+    def __str__(self):
+        return f"{self.get_call_type_display()} call from {self.caller.username} to {self.callee.username}"
+    
+    @property
+    def formatted_duration(self):
+        """Format call duration in MM:SS format"""
+        if not self.duration:
+            return "0:00"
+        
+        minutes, seconds = divmod(self.duration, 60)
+        hours, minutes = divmod(minutes, 60)
+        
+        if hours > 0:
+            return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+        else:
+            return f"{minutes:02d}:{seconds:02d}"
+    
+    def accept_call(self):
+        """Mark call as accepted"""
+        if self.status in ['initiated', 'ringing']:
+            self.status = 'accepted'
+            self.accepted_at = timezone.now()
+            self.save()
+    
+    def reject_call(self):
+        """Mark call as rejected"""
+        if self.status in ['initiated', 'ringing']:
+            self.status = 'rejected'
+            self.ended_at = timezone.now()
+            self.save()
+    
+    def end_call(self):
+        """End an active call and calculate duration"""
+        if self.status == 'accepted':
+            self.status = 'ended'
+            self.ended_at = timezone.now()
+            
+            # Calculate duration if call was accepted
+            if self.accepted_at:
+                duration_seconds = (self.ended_at - self.accepted_at).total_seconds()
+                self.duration = int(duration_seconds)
+            
+            self.save()
+    
+    def mark_as_missed(self):
+        """Mark call as missed"""
+        if self.status in ['initiated', 'ringing']:
+            self.status = 'missed'
+            self.ended_at = timezone.now()
+            self.save()
